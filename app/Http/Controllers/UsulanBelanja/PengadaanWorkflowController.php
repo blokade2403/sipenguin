@@ -380,6 +380,7 @@ class PengadaanWorkflowController extends Controller
 
     private function barangDatangViewData(Spj $spj): array
     {
+        $arrivalReceipts = DB::table('spj_barang_datang')->where('spj_id', $spj->id)->orderBy('tanggal_datang')->orderBy('created_at')->get();
         $masterInfo = DB::table('master_spjs as master')
             ->leftJoin('perusahaans as perusahaan', 'perusahaan.id_perusahaan', '=', 'master.perusahaan_id')
             ->where('master.spj_id', $spj->id)
@@ -414,6 +415,7 @@ class PengadaanWorkflowController extends Controller
             'netto' => $netto,
             'nilaiPpn' => $nilaiPpn,
             'totalAnggaran' => $netto + $nilaiPpn,
+            'arrivalReceipts' => $arrivalReceipts,
         ];
     }
 
@@ -553,23 +555,44 @@ class PengadaanWorkflowController extends Controller
             'foto_barang_datang_2' => ['nullable', 'image', 'mimes:jpg,jpeg,png', 'max:5120'],
             'foto_barang_datang_3' => ['nullable', 'image', 'mimes:jpg,jpeg,png', 'max:5120'],
             'tgl_barang_datang' => ['required', 'date'],
+            'status_penerimaan' => ['required', 'in:parsial,selesai'],
             'keterangan_barang_datang' => ['nullable', 'string', 'max:5000'],
         ]);
-        foreach (['foto_barang_datang', 'foto_barang_datang_2', 'foto_barang_datang_3'] as $field) {
-            if ($request->hasFile($field)) {
-                $data[$field] = $request->file($field)->store('pengadaan/barang-datang', 'public');
-            } else {
-                unset($data[$field]);
-            }
-        }
         $from = $spj->pengadaan_step;
-        $spj->update($data + [
-            'pengadaan_step' => 'validasi_barang',
-            'status_verifikasi_pengurus_barang' => null,
-            'keterangan_verif_pengurus_barang' => null,
-        ]);
-        $this->log($spj, 'Unggah foto barang datang', $from, 'validasi_barang', $data['keterangan_barang_datang'] ?? null);
-        return back()->with('success', 'Foto barang datang tersimpan dan menunggu validasi Pengurus Barang.');
+        $paths = [];
+        foreach (['foto_barang_datang', 'foto_barang_datang_2', 'foto_barang_datang_3'] as $field) {
+            $paths[$field] = $request->hasFile($field) ? $request->file($field)->store('pengadaan/barang-datang', 'public') : null;
+        }
+        $receiptId = (string) Str::uuid();
+        $isComplete = $data['status_penerimaan'] === 'selesai';
+        DB::transaction(function () use ($spj, $data, $paths, $receiptId, $isComplete, $from) {
+            DB::table('spj_barang_datang')->insert([
+                'id' => $receiptId, 'spj_id' => $spj->id, 'tanggal_datang' => $data['tgl_barang_datang'],
+                'status_penerimaan' => $data['status_penerimaan'],
+                'keterangan' => $data['keterangan_barang_datang'] ?? null, 'foto_utama' => $paths['foto_barang_datang'],
+                'foto_tambahan_2' => $paths['foto_barang_datang_2'], 'foto_tambahan_3' => $paths['foto_barang_datang_3'],
+                'user_id' => auth()->id(), 'created_at' => now(), 'updated_at' => now(),
+            ]);
+            $firstReceipt = DB::table('spj_barang_datang')->where('spj_id', $spj->id)->count() === 1;
+            $updates = ['pengadaan_step' => $isComplete ? 'validasi_barang' : 'upload_foto'];
+            if ($firstReceipt) {
+                $updates += [
+                    'foto_barang_datang' => $paths['foto_barang_datang'],
+                    'foto_barang_datang_2' => $paths['foto_barang_datang_2'],
+                    'foto_barang_datang_3' => $paths['foto_barang_datang_3'],
+                    'tgl_barang_datang' => $data['tgl_barang_datang'],
+                    'keterangan_barang_datang' => $data['keterangan_barang_datang'] ?? null,
+                ];
+            }
+            if ($isComplete) {
+                $updates += ['status_verifikasi_pengurus_barang' => null, 'keterangan_verif_pengurus_barang' => null];
+            }
+            $spj->update($updates);
+            $this->log($spj, 'Catat penerimaan barang', $from, $updates['pengadaan_step'], ($isComplete ? 'Penerimaan selesai. ' : 'Penerimaan parsial. ') . ($data['keterangan_barang_datang'] ?? ''));
+        });
+        return back()->with('success', $isComplete
+            ? 'Penerimaan ditandai selesai dan menunggu validasi Pengurus Barang.'
+            : 'Penerimaan parsial tersimpan. Catat kembali saat kiriman berikutnya tiba.');
     }
 
     public function validasiBarang(Request $request, Spj $spj)

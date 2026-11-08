@@ -42,11 +42,13 @@
     @media (max-width: 575.98px) { .spj-stage-form-card > .card-header { padding: 1rem 1.2rem; } }
 </style>
 
- <div class="card card-bordered shadow-sm rounded-3 spj-workflow-process-card">
-     <div class="card-header bg-light-primary border-0">
-         <h4 class="card-title">Alur Pengadaan — {{ $step === 'workflow' ? ($workflowStepName ?? 'Validasi Workflow Pengadaan') : ($steps[$step] ?? $step) }}</h4>
+ <div class="spj-workflow-process">
+     <div class="spj-workflow-current-heading">
+         <span class="spj-workflow-current-icon"><i class="fas fa-route"></i></span>
+         <div class="flex-grow-1"><span class="spj-workflow-current-eyebrow">Alur Pengadaan dan Validasi</span><h4 class="mb-1">{{ $step === 'workflow' ? ($workflowStepName ?? 'Validasi Workflow Pengadaan') : ($steps[$step] ?? $step) }}</h4><p class="mb-0">Setiap tahap dan dokumen ditampilkan terpisah agar mudah ditinjau.</p></div>
+         <span class="badge badge-light-primary spj-workflow-current-badge">{{ $step === 'workflow' ? ($workflowStepName ?? 'Validasi Workflow Pengadaan') : ($steps[$step] ?? 'Selesai') }}</span>
      </div>
-     <div class="card-body">
+     <div class="spj-workflow-process-body">
          @if (session('success'))
              <div class="alert alert-success">{{ session('success') }}</div>
          @endif
@@ -59,11 +61,7 @@
                  </ul>
              </div>
          @endif
-         <div class="alert alert-light-primary"><strong>Tahap:</strong> {{ $step === 'workflow' ? ($workflowStepName ?? 'Validasi Workflow Pengadaan') : ($steps[$step] ?? $step) }} <span
-                 class="mx-2">|</span><strong>Subkategori:</strong>
-             {{ $spj->usulanBelanja?->rkbu?->subKategoriRkbu?->nama_sub_kategori_rkbu ?? '-' }} <span
-                 class="mx-2">|</span><strong>Pengusul:</strong> {{ $spj->usulanBelanja?->nama_pengusul ?? '-' }}
-         </div>
+         <div class="spj-workflow-context"><span><strong>Subkategori:</strong> {{ $spj->usulanBelanja?->rkbu?->subKategoriRkbu?->nama_sub_kategori_rkbu ?? '-' }}</span><span><strong>Pengusul:</strong> {{ $spj->usulanBelanja?->nama_pengusul ?? '-' }}</span></div>
 @if ($canPesanan && $step === 'input_pesanan')
              <div class="card card-bordered spj-stage-form-card mb-6">
                  <div class="card-header">
@@ -92,9 +90,9 @@
          @endif
 
          @if ($step !== 'input_pesanan')
-             <div class="card card-bordered mb-6">
+             <div class="card spj-stage-summary-card mb-6">
                  <div class="card-header">
-                     <h4 class="card-title">Data Pesanan</h4>
+                     <div><span class="spj-stage-kicker">Tahap 1</span><h5 class="card-title">Data Surat Pesanan</h5></div><span class="badge badge-light-success">Tersimpan</span>
                  </div>
                  <div class="card-body">
                      <dl class="row mb-0">
@@ -173,12 +171,9 @@
                  </div>
              </div>
          @elseif($spj->status_verifikasi_pengurus_barang)
-             <div class="alert alert-light-info"><strong>Hasil validasi:</strong>
-                 {{ $spj->status_verifikasi_pengurus_barang }} — {{ $spj->keterangan_verif_pengurus_barang }} <span
-                     class="d-block mt-1">Tanggal: {{ $spj->tgl_verif_pengurus_barang }}; validator:
-                     {{ $spj->validator_pengurus_barang_id }}</span>
-                 <div class="mt-2">No. BAST serah terima unit: {{ $spj->no_bast_serah_terima_unit ?? '-' }}</div>
-                 <div>Nama penerima barang: {{ $spj->nama_penerima_barang ?? '-' }}</div>
+             <div class="card spj-stage-summary-card mb-6">
+                 <div class="card-header"><div><span class="spj-stage-kicker">Tahap 3</span><h5 class="card-title">Validasi Pengurus Barang</h5></div><span class="badge badge-light-{{ $spj->status_verifikasi_pengurus_barang === 'Selesai' ? 'success' : 'warning' }}">{{ $spj->status_verifikasi_pengurus_barang }}</span></div>
+                 <div class="card-body"><p class="mb-3">{{ $spj->keterangan_verif_pengurus_barang ?: 'Tidak ada catatan.' }}</p><div class="row g-3"><div class="col-12 col-md-4"><span class="spj-summary-label">Tanggal validasi</span><strong>{{ $spj->tgl_verif_pengurus_barang ? \Illuminate\Support\Carbon::parse($spj->tgl_verif_pengurus_barang)->translatedFormat('d F Y') : '-' }}</strong></div><div class="col-12 col-md-4"><span class="spj-summary-label">Nomor BAST unit</span><strong>{{ $spj->no_bast_serah_terima_unit ?? '-' }}</strong></div><div class="col-12 col-md-4"><span class="spj-summary-label">Penerima barang</span><strong>{{ $spj->nama_penerima_barang ?? '-' }}</strong></div></div></div>
              </div>
          @endif
 
@@ -206,16 +201,15 @@
                  </div>
              </div>
          @elseif(!in_array($step, ['input_pesanan', 'upload_foto', 'validasi_barang', 'input_bast'], true))
-             <div class="alert alert-success">
-                 <h4>BAST selesai</h4>
-                 <p class="mb-1">Tanggal BAST: {{ $spj->tgl_bast }} | BA: {{ $spj->no_ba }} | BA HP:
-                     {{ $spj->no_ba_hp }} | BA BP: {{ $spj->no_ba_bp }} | DPA: {{ $spj->no_dpa }}</p>
-                 <div class="d-flex flex-wrap gap-2 mt-3">
+             <div class="card spj-stage-summary-card spj-stage-summary-success mb-6">
+                 <div class="card-header"><div><span class="spj-stage-kicker">Tahap 4</span><h5 class="card-title">BAST selesai</h5></div><span class="badge badge-light-success">Selesai</span></div>
+                 <div class="card-body"><div class="row g-3 mb-4"><div class="col-12 col-sm-6 col-xl-3"><span class="spj-summary-label">Tanggal BAST</span><strong>{{ $spj->tgl_bast ?: '-' }}</strong></div><div class="col-12 col-sm-6 col-xl-3"><span class="spj-summary-label">Nomor BA</span><strong>{{ $spj->no_ba ?: '-' }}</strong></div><div class="col-12 col-sm-6 col-xl-3"><span class="spj-summary-label">Nomor BA HP / BP</span><strong>{{ $spj->no_ba_hp ?: '-' }} / {{ $spj->no_ba_bp ?: '-' }}</strong></div><div class="col-12 col-sm-6 col-xl-3"><span class="spj-summary-label">Nomor DPA</span><strong>{{ $spj->no_dpa ?: '-' }}</strong></div></div>
+                 <div class="d-flex flex-wrap gap-2">
                      @foreach (['pemeriksaan-pekerjaan' => 'BA Pemeriksaan Pekerjaan', 'serah-terima-barang' => 'BA Serah Terima Barang/Pekerjaan', 'serah-terima-hasil' => 'BA Serah Terima Hasil Pekerjaan'] as $document => $label)
                          <a class="btn btn-sm btn-light-primary" href="{{ route('usulan-belanja.pengadaan.document', ['spj' => $spj->id, 'document' => $document]) }}" target="_blank" rel="noopener"><i class="fas fa-print me-1"></i>{{ $label }}</a>
                          <a class="btn btn-sm btn-primary" href="{{ route('usulan-belanja.pengadaan.document', ['spj' => $spj->id, 'document' => $document, 'download' => 1]) }}"><i class="fas fa-download me-1"></i>Download .doc</a>
                      @endforeach
-                 </div>
+                 </div></div>
              </div>
          @endif
 
@@ -249,9 +243,9 @@
                  </div>
              </div>
          @elseif(!empty($masterInfo?->status_proses_tukar_faktur))
-             <div class="alert alert-light-success">
-                 <strong>Tukar Faktur:</strong> {{ $masterInfo->status_proses_tukar_faktur }}
-                 <span class="d-block mt-2">Tanggal Tukar Faktur: {{ $masterInfo->tanggal_faktur ?? '-' }} | Tanggal Kwitansi Faktur: {{ $masterInfo->tgl_kwitansi ?? '-' }} | Nomor Faktur: {{ $masterInfo->no_faktur ?? '-' }}</span>
+             <div class="card spj-stage-summary-card mb-6">
+                 <div class="card-header"><div><span class="spj-stage-kicker">Tahap 5</span><h5 class="card-title">Tukar Faktur</h5></div><span class="badge badge-light-success">{{ $masterInfo->status_proses_tukar_faktur }}</span></div>
+                 <div class="card-body"><div class="row g-3"><div class="col-12 col-md-4"><span class="spj-summary-label">Tanggal tukar faktur</span><strong>{{ $masterInfo->tanggal_faktur ?? '-' }}</strong></div><div class="col-12 col-md-4"><span class="spj-summary-label">Tanggal kwitansi</span><strong>{{ $masterInfo->tgl_kwitansi ?? '-' }}</strong></div><div class="col-12 col-md-4"><span class="spj-summary-label">Nomor faktur</span><strong>{{ $masterInfo->no_faktur ?? '-' }}</strong></div></div></div>
              </div>
          @endif
 
@@ -369,8 +363,8 @@
          @endif
 
          @if (!empty($masterInfo?->upload_spj_1) || !empty($masterInfo?->upload_spj_2))
-             <div class="card card-bordered mb-6">
-                 <div class="card-header"><h4 class="card-title">Dokumen Penyerahan SPJ</h4></div>
+             <div class="card spj-stage-summary-card mb-6">
+                 <div class="card-header"><div><span class="spj-stage-kicker">Tahap Penyerahan</span><h5 class="card-title">Dokumen Penyerahan SPJ</h5></div><span class="badge badge-light-success">Tersimpan</span></div>
                  <div class="card-body d-flex flex-wrap gap-4">
                      @foreach (['upload_spj_1' => 'Dokumen SPJ 1', 'upload_spj_2' => 'Dokumen SPJ 2'] as $field => $label)
                          @if (!empty($masterInfo->{$field}))
@@ -389,8 +383,8 @@
                  $buktiLunas = $latestPaymentInfo?->bukti_bayar ?? $masterInfo?->bukti_bayar;
                  $namaBendahara = $latestPaymentInfo?->nama_bendahara ?? $masterInfo?->nama_validasi_keuangan ?? '-';
              @endphp
-             <div class="card card-bordered mb-6">
-                 <div class="card-header"><h4 class="card-title">Pembayaran Bendahara</h4></div>
+             <div class="card spj-stage-summary-card spj-stage-summary-success mb-6">
+                 <div class="card-header"><div><span class="spj-stage-kicker">Tahap Pembayaran</span><h5 class="card-title">Pembayaran Bendahara</h5></div><span class="badge badge-light-success">Selesai</span></div>
                  <div class="card-body row g-4">
                      <div class="col-lg-5">
                          <div class="alert alert-success mb-0">
@@ -550,17 +544,15 @@
              </div>
          @endif
 
-         <div class="card card-bordered mt-7">
+         <div class="card spj-stage-summary-card spj-history-card mt-7">
              <div class="card-header">
-                 <h4 class="card-title">Riwayat Alur</h4>
+                 <div><span class="spj-stage-kicker">Audit Trail</span><h4 class="card-title">Riwayat Alur</h4></div>
+                 <span class="badge badge-light-primary">{{ $logs->count() }} aktivitas</span>
              </div>
              <div class="card-body">
                  @forelse($logs as $log)
-                     <div class="border-bottom pb-3 mb-3"><strong>{{ $log->aksi }}</strong> <span
-                             class="text-muted">oleh {{ $log->nama_user ?? 'user dihapus' }} —
-                             {{ $log->created_at }}</span>
-                         <div class="text-muted">{{ $steps[$log->step_dari] ?? ($log->step_dari ?? '—') }} →
-                             {{ $steps[$log->step_ke] ?? ($log->step_ke ?? '—') }}</div>
+                     <div class="spj-history-event"><strong>{{ $log->aksi }}</strong> <span class="spj-history-meta">oleh {{ $log->nama_user ?? 'user dihapus' }} · {{ $log->created_at }}</span>
+                         <div class="spj-history-transition">{{ $steps[$log->step_dari] ?? ($log->step_dari ?? '—') }} → {{ $steps[$log->step_ke] ?? ($log->step_ke ?? '—') }}</div>
                          @if ($log->catatan)
                              <div>{{ $log->catatan }}</div>
                          @endif

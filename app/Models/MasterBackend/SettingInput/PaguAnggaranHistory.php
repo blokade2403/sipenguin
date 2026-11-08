@@ -34,16 +34,13 @@ class PaguAnggaranHistory extends Model
         'detail_sesudah',
     ];
 
-    protected function casts(): array
-    {
-        return [
-            'nilai_sebelum' => 'decimal:2',
-            'nilai_sesudah' => 'decimal:2',
-            'selisih' => 'decimal:2',
-            'detail_sebelum' => 'array',
-            'detail_sesudah' => 'array',
-        ];
-    }
+    protected $casts = [
+        'nilai_sebelum' => 'decimal:2',
+        'nilai_sesudah' => 'decimal:2',
+        'selisih' => 'decimal:2',
+        'detail_sebelum' => 'array',
+        'detail_sesudah' => 'array',
+    ];
 
     public function user(): BelongsTo
     {

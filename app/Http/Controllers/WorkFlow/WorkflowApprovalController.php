@@ -15,6 +15,7 @@ use App\Models\MasterBackend\SettingInput\TahunAnggaran;
 use App\Models\MasterBackend\SettingInput\TanggalPerencana;
 use App\Models\Rkbu\Rkbu;
 use App\Models\Rkbu\RkbuEditHistory;
+use App\Support\RkbuEditHistoryPresenter;
 use App\Models\WorkFlow\Approval;
 use App\Models\WorkFlow\ApprovalLog;
 use App\Models\WorkFlow\WorkflowStep;
@@ -204,6 +205,10 @@ class WorkflowApprovalController extends Controller
                 'attachmentUrl' => $entry->lampiran ? asset('storage/' . $entry->lampiran) : null,
                 'before' => ['header' => $entry->header_sebelum, 'details' => $entry->detail_sebelum],
                 'after' => ['header' => $entry->header_sesudah, 'details' => $entry->detail_sesudah],
+                'comparisonRows' => RkbuEditHistoryPresenter::comparisonRows(
+                    ['header' => $entry->header_sebelum, 'details' => $entry->detail_sebelum],
+                    ['header' => $entry->header_sesudah, 'details' => $entry->detail_sesudah]
+                ),
             ])->values();
         $module = app(WorkflowApprovalDataTable::class)->moduleKey($rkbu, $details);
 
@@ -822,7 +827,7 @@ class WorkflowApprovalController extends Controller
             $hasChange = $beforeAuditHeader !== $afterAuditHeader || $beforeAuditDetails !== $afterAuditDetails;
             $afterTotal = (float) $rkbuDetails->sum('total_anggaran');
 
-            if ($hasChange) {
+            if ($phaseOrder > 1 && $hasChange) {
                 RkbuEditHistory::query()->create([
                     'rkbu_id' => $rkbu->id,
                     'user_id' => auth()->id(),

@@ -3,6 +3,7 @@
 namespace App\Models\Rkbu;
 
 use App\Models\MasterBackend\UserProfil\User;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 
@@ -45,5 +46,10 @@ class RkbuEditHistory extends Model
     public function user()
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function rkbu(): BelongsTo
+    {
+        return $this->belongsTo(Rkbu::class, 'rkbu_id');
     }
 }

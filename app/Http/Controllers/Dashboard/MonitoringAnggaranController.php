@@ -53,18 +53,21 @@ class MonitoringAnggaranController extends Controller
         foreach ($paguRows as $pagu) {
             $code = trim((string) $pagu->kode_rekening_belanja, '.');
             if ($code === '') continue;
-            $dataByCode[$code] ??= ['anggaran' => 0.0, 'pengadaan' => 0.0, 'keuangan' => 0.0, 'realisasi' => 0.0];
+            $dataByCode[$code] ??= ['anggaran' => 0.0, 'usulan' => 0.0, 'pengadaan' => 0.0, 'keuangan' => 0.0, 'realisasi' => 0.0];
             $dataByCode[$code]['anggaran'] += (float) $pagu->jumlah_pagu;
         }
 
         $itemRows = $yearId ? DB::table('usulan_belanja_items as item')
             ->join('usulan_belanjas as usulan', 'usulan.id', '=', 'item.usulan_belanja_id')
             ->join('rkbus', 'rkbus.id', '=', 'item.rkbu_id')
+            ->leftJoin('sumber_danas as sumber_usulan', 'sumber_usulan.id_sumber_dana', '=', 'usulan.sumber_dana_id')
             ->leftJoin('sumber_danas as sumber', 'sumber.id_sumber_dana', '=', 'rkbus.sumber_dana_id')
+            ->leftJoin('sub_kegiatans as sub_kegiatan_source', 'sub_kegiatan_source.id_sub_kegiatan', '=', 'rkbus.sub_kegiatan_id')
+            ->leftJoin('sumber_danas as sumber_sub_kegiatan', 'sumber_sub_kegiatan.id_sumber_dana', '=', 'sub_kegiatan_source.id_sumber_dana')
             ->where('usulan.tahun_anggaran_id', $yearId)
             ->where('usulan.status_usulan', 'approved')
-            ->when($source === 'BLUD', fn ($query) => $query->whereRaw("LOWER(TRIM(COALESCE(sumber.nama_sumber_dana, ''))) LIKE '%blud%' AND LOWER(TRIM(COALESCE(sumber.nama_sumber_dana, ''))) NOT LIKE '%non blud%'"))
-            ->when($source === 'Non BLUD', fn ($query) => $query->whereRaw("LOWER(TRIM(COALESCE(sumber.nama_sumber_dana, ''))) NOT LIKE '%blud%'"))
+            ->when($source === 'BLUD', fn ($query) => $query->whereRaw("LOWER(TRIM(COALESCE(NULLIF(TRIM(sumber_usulan.nama_sumber_dana), ''), NULLIF(TRIM(sumber.nama_sumber_dana), ''), sumber_sub_kegiatan.nama_sumber_dana, ''))) LIKE '%blud%' AND LOWER(TRIM(COALESCE(NULLIF(TRIM(sumber_usulan.nama_sumber_dana), ''), NULLIF(TRIM(sumber.nama_sumber_dana), ''), sumber_sub_kegiatan.nama_sumber_dana, ''))) NOT LIKE '%non blud%'"))
+            ->when($source === 'Non BLUD', fn ($query) => $query->whereRaw("LOWER(TRIM(COALESCE(NULLIF(TRIM(sumber_usulan.nama_sumber_dana), ''), NULLIF(TRIM(sumber.nama_sumber_dana), ''), sumber_sub_kegiatan.nama_sumber_dana, ''))) NOT LIKE '%blud%'"))
             ->get([
                 'item.id as item_id', 'item.usulan_belanja_id', 'item.rkbu_id', 'rkbus.sub_kategori_rkbu_id', 'item.harga_satuan', 'item.volume', 'item.ppn',
             ])
@@ -74,62 +77,93 @@ class MonitoringAnggaranController extends Controller
             ->with(['subKategoriRkbu.sub_kategori_rekening', 'subKegiatan'])
             ->get()->mapWithKeys(fn (Rkbu $rkbu) => [$rkbu->id => $paguService->resolveAccountId($rkbu)]);
 
-        $spjByUsulan = $yearId ? DB::table('spjs as spj')
+        $spjDetails = $itemRows->isNotEmpty() ? DB::table('spj_details as detail')
+            ->join('spjs as spj', 'spj.id', '=', 'detail.spj_id')
             ->leftJoin('master_spjs as master', 'master.spj_id', '=', 'spj.id')
-            ->whereIn('spj.usulan_belanja_id', DB::table('usulan_belanjas')->where('tahun_anggaran_id', $yearId)->where('status_usulan', 'approved')->select('id'))
-            ->orderBy('spj.created_at')
+            ->whereIn('detail.usulan_belanja_item_id', $itemRows->pluck('item_id')->unique())
             ->get([
-                'spj.usulan_belanja_id', 'spj.pengadaan_step', 'master.bruto', 'master.pembayaran',
-                'master.status_serah_terima_bendahara',
-            ])->keyBy('usulan_belanja_id')
+                'detail.usulan_belanja_item_id', 'detail.volume as detail_volume', 'spj.id as linked_spj_id',
+                'spj.pengadaan_step', 'spj.no_surat_pesanan', 'master.no_surat_pesanan as master_no_surat_pesanan',
+                'master.bruto', 'master.pembayaran', 'master.status_serah_terima_bendahara',
+            ])
             : collect();
+        $itemsById = $itemRows->keyBy('item_id');
+        $spjAmountTotals = [];
+        foreach ($spjDetails as $detail) {
+            $item = $itemsById->get($detail->usulan_belanja_item_id);
+            $itemVolume = (float) ($item?->volume ?? 0);
+            $detailVolume = min($itemVolume, max(0, (float) $detail->detail_volume));
+            if (! $item || $itemVolume <= 0 || $detailVolume <= 0) continue;
+            $unitTotal = (float) $item->harga_satuan * (1 + (float) $item->ppn / 100);
+            $spjAmountTotals[$detail->linked_spj_id] = ($spjAmountTotals[$detail->linked_spj_id] ?? 0)
+                + $unitTotal * $detailVolume;
+        }
 
         $subCategoryTransactions = [];
-        foreach ($itemRows->groupBy('usulan_belanja_id') as $usulanId => $items) {
-            $usulanTotal = $items->sum(fn ($item) => (float) $item->harga_satuan * (float) $item->volume * (1 + (float) $item->ppn / 100));
-            if ($usulanTotal <= 0) continue;
-            $spj = $spjByUsulan->get($usulanId);
-            $paid = (float) ($spj->pembayaran ?? 0);
-            $acceptedByFinance = ($spj->status_serah_terima_bendahara ?? null) === 'Selesai';
-            $isCompleted = ($spj->pengadaan_step ?? null) === 'selesai';
-            $financeTotal = $acceptedByFinance ? max(0, (float) ($spj->bruto ?? $usulanTotal) - $paid) : 0.0;
+        foreach ($itemRows as $item) {
+            $accountId = $rkbuAccountIds->get($item->rkbu_id);
+            $rkbuCode = trim((string) $codeById->get($accountId), '.');
+            if ($rkbuCode === '') continue;
 
-            foreach ($items as $item) {
-                $accountId = $rkbuAccountIds->get($item->rkbu_id);
-                $rkbuCode = trim((string) $codeById->get($accountId), '.');
-                if ($rkbuCode === '') continue;
-                $itemAmount = (float) $item->harga_satuan * (float) $item->volume * (1 + (float) $item->ppn / 100);
-                $share = $itemAmount / $usulanTotal;
-                $dataByCode[$rkbuCode] ??= ['anggaran' => 0.0, 'pengadaan' => 0.0, 'keuangan' => 0.0, 'realisasi' => 0.0];
+            $itemVolume = (float) $item->volume;
+            $unitTotal = (float) $item->harga_satuan * (1 + (float) $item->ppn / 100);
+            $itemAmount = $unitTotal * $itemVolume;
+            if ($itemAmount <= 0 || $itemVolume <= 0) continue;
+            $dataByCode[$rkbuCode] ??= ['anggaran' => 0.0, 'usulan' => 0.0, 'pengadaan' => 0.0, 'keuangan' => 0.0, 'realisasi' => 0.0];
+
+            $assignedAmount = 0.0;
+            foreach ($spjDetails->where('usulan_belanja_item_id', $item->item_id) as $detail) {
+                $detailVolume = min($itemVolume, max(0, (float) $detail->detail_volume));
+                if ($detailVolume <= 0) continue;
+                $portion = $unitTotal * $detailVolume;
+                $assignedAmount += $portion;
+                $spjTotal = (float) ($spjAmountTotals[$detail->linked_spj_id] ?? 0);
+                $share = $spjTotal > 0 ? $portion / $spjTotal : 0;
+                $paid = (float) ($detail->pembayaran ?? 0);
+                $acceptedByFinance = ($detail->status_serah_terima_bendahara ?? null) === 'Selesai';
+                $isCompleted = ($detail->pengadaan_step ?? null) === 'selesai';
+                $hasPurchaseOrder = filled($detail->no_surat_pesanan ?? $detail->master_no_surat_pesanan ?? null);
+                $financeTotal = $acceptedByFinance ? max(0, (float) ($detail->bruto ?? $spjTotal) - $paid) : 0.0;
+
                 $dataByCode[$rkbuCode]['realisasi'] += $paid * $share;
                 if ($acceptedByFinance) {
                     $dataByCode[$rkbuCode]['keuangan'] += $financeTotal * $share;
                 } elseif (! $isCompleted) {
-                    $dataByCode[$rkbuCode]['pengadaan'] += $itemAmount;
+                    $dataByCode[$rkbuCode][$hasPurchaseOrder ? 'pengadaan' : 'usulan'] += $portion;
                 }
 
                 $subCategoryId = $item->sub_kategori_rkbu_id;
                 if ($subCategoryId) {
-                    $subCategoryTransactions[$subCategoryId] ??= ['pengadaan' => 0.0, 'keuangan' => 0.0, 'realisasi' => 0.0];
+                    $subCategoryTransactions[$subCategoryId] ??= ['usulan' => 0.0, 'pengadaan' => 0.0, 'keuangan' => 0.0, 'realisasi' => 0.0];
                     $subCategoryTransactions[$subCategoryId]['realisasi'] += $paid * $share;
                     if ($acceptedByFinance) {
                         $subCategoryTransactions[$subCategoryId]['keuangan'] += $financeTotal * $share;
                     } elseif (! $isCompleted) {
-                        $subCategoryTransactions[$subCategoryId]['pengadaan'] += $itemAmount;
+                        $subCategoryTransactions[$subCategoryId][$hasPurchaseOrder ? 'pengadaan' : 'usulan'] += $portion;
                     }
+                }
+            }
+
+            $unassignedAmount = max(0, $itemAmount - $assignedAmount);
+            if ($unassignedAmount > 0) {
+                $dataByCode[$rkbuCode]['usulan'] += $unassignedAmount;
+                $subCategoryId = $item->sub_kategori_rkbu_id;
+                if ($subCategoryId) {
+                    $subCategoryTransactions[$subCategoryId] ??= ['usulan' => 0.0, 'pengadaan' => 0.0, 'keuangan' => 0.0, 'realisasi' => 0.0];
+                    $subCategoryTransactions[$subCategoryId]['usulan'] += $unassignedAmount;
                 }
             }
         }
 
         $ledgerRows = $accounts->map(function ($account) use ($dataByCode) {
             $code = trim((string) $account->kode_rekening_belanja, '.');
-            $totals = ['anggaran' => 0.0, 'pengadaan' => 0.0, 'keuangan' => 0.0, 'realisasi' => 0.0];
+            $totals = ['anggaran' => 0.0, 'usulan' => 0.0, 'pengadaan' => 0.0, 'keuangan' => 0.0, 'realisasi' => 0.0];
             foreach ($dataByCode as $detailCode => $values) {
                 if ($detailCode !== $code && ! str_starts_with($detailCode, $code . '.')) continue;
                 foreach ($totals as $column => $_) $totals[$column] += $values[$column];
             }
             if (array_sum($totals) <= 0) return null;
-            $totals['sisa'] = $totals['anggaran'] - $totals['pengadaan'] - $totals['keuangan'] - $totals['realisasi'];
+            $totals['sisa'] = $totals['anggaran'] - $totals['usulan'] - $totals['pengadaan'] - $totals['keuangan'] - $totals['realisasi'];
             $totals['persentase'] = $totals['anggaran'] > 0 ? round($totals['realisasi'] / $totals['anggaran'] * 100, 2) : 0;
             $totals['kode'] = $account->kode_rekening_belanja;
             $totals['nama'] = $account->nama_rekening_belanja;
@@ -192,7 +226,7 @@ class MonitoringAnggaranController extends Controller
 
             $addMonitoringRow = function (string $code, string $name, int $level, float $budget, array $activity) {
                 $activity['anggaran'] = $budget;
-                $activity['sisa'] = $budget - $activity['pengadaan'] - $activity['keuangan'] - $activity['realisasi'];
+                $activity['sisa'] = $budget - $activity['usulan'] - $activity['pengadaan'] - $activity['keuangan'] - $activity['realisasi'];
                 $activity['persentase'] = $budget > 0 ? round($activity['realisasi'] / $budget * 100, 2) : 0;
                 $activity['kode'] = $code;
                 $activity['nama'] = $name;
@@ -201,7 +235,7 @@ class MonitoringAnggaranController extends Controller
                 return $activity;
             };
             $sumActivity = function ($subcategories) use ($subCategoryTransactions) {
-                $sum = ['pengadaan' => 0.0, 'keuangan' => 0.0, 'realisasi' => 0.0];
+                $sum = ['usulan' => 0.0, 'pengadaan' => 0.0, 'keuangan' => 0.0, 'realisasi' => 0.0];
                 foreach ($subcategories as $subcategory) {
                     $activity = $subCategoryTransactions[$subcategory->id_sub_kategori_rkbu] ?? [];
                     foreach ($sum as $field => $_) {
@@ -249,7 +283,7 @@ class MonitoringAnggaranController extends Controller
                         foreach ($categoryGroup as $subcategory) {
                             $subcategoryBudget = (float) ($budgetBySubCategory[$subcategory->id_sub_kategori_rkbu] ?? 0);
                             $subcategoryActivity = $subCategoryTransactions[$subcategory->id_sub_kategori_rkbu]
-                                ?? ['pengadaan' => 0.0, 'keuangan' => 0.0, 'realisasi' => 0.0];
+                                ?? ['usulan' => 0.0, 'pengadaan' => 0.0, 'keuangan' => 0.0, 'realisasi' => 0.0];
                             $subcategoryRows->push($addMonitoringRow(
                                 (string) $subcategory->kode_sub_kategori_rkbu,
                                 (string) $subcategory->nama_sub_kategori_rkbu,
@@ -269,11 +303,12 @@ class MonitoringAnggaranController extends Controller
 
         $summary = [
             'anggaran' => (float) $paguRows->sum('jumlah_pagu'),
+            'usulan' => (float) collect($dataByCode)->sum('usulan'),
             'pengadaan' => (float) collect($dataByCode)->sum('pengadaan'),
             'keuangan' => (float) collect($dataByCode)->sum('keuangan'),
             'realisasi' => (float) collect($dataByCode)->sum('realisasi'),
         ];
-        $summary['sisa'] = $summary['anggaran'] - $summary['pengadaan'] - $summary['keuangan'] - $summary['realisasi'];
+        $summary['sisa'] = $summary['anggaran'] - $summary['usulan'] - $summary['pengadaan'] - $summary['keuangan'] - $summary['realisasi'];
         $summary['persentase'] = $summary['anggaran'] > 0 ? round($summary['realisasi'] / $summary['anggaran'] * 100, 2) : 0;
 
         $programAccountMap = DB::table('rekening_belanjas as rekening')
@@ -300,8 +335,8 @@ class MonitoringAnggaranController extends Controller
                 ['key' => 'rekening:' . $code, 'level' => 3, 'label' => $code . ' ' . $account->nama_rekening_belanja],
             ];
             foreach ($path as $node) {
-                $programRows[$node['key']] ??= $node + ['anggaran' => 0.0, 'pengadaan' => 0.0, 'keuangan' => 0.0, 'realisasi' => 0.0];
-                foreach (['anggaran', 'pengadaan', 'keuangan', 'realisasi'] as $column) {
+                $programRows[$node['key']] ??= $node + ['anggaran' => 0.0, 'usulan' => 0.0, 'pengadaan' => 0.0, 'keuangan' => 0.0, 'realisasi' => 0.0];
+                foreach (['anggaran', 'usulan', 'pengadaan', 'keuangan', 'realisasi'] as $column) {
                     $programRows[$node['key']][$column] += (float) $values[$column];
                 }
             }

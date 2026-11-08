@@ -10,9 +10,11 @@ use App\Models\MasterBackend\SettingBelanja\Perusahaan;
 use App\Services\Workflow\UsulanBelanjaWorkflowService;
 use App\Services\Workflow\UsulanBelanjaBalanceService;
 use App\Services\Workflow\PaguAnggaranService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -197,8 +199,8 @@ class SpjUsulanBelanjaController extends Controller
             ->get(['ws.id', 'ws.step_order', 'ws.validator_type', 'ws.is_pptk_step', 'p.level_jabatan', 'r.nama_role', 'vr.nama_validator']) : collect();
         $workflowStepSubcategories = Schema::hasTable('workflow_step_sub_kategori_rkbu')
             ? DB::table('workflow_step_sub_kategori_rkbu')->get(['workflow_step_id', 'sub_kategori_rkbu_id'])
-                ->groupBy(fn ($row) => (string) $row->workflow_step_id)
-                ->map(fn ($rows) => $rows->pluck('sub_kategori_rkbu_id')->map(fn ($id) => (string) $id)->all())
+            ->groupBy(fn($row) => (string) $row->workflow_step_id)
+            ->map(fn($rows) => $rows->pluck('sub_kategori_rkbu_id')->map(fn($id) => (string) $id)->all())
             : collect();
         $approvalStatuses = Schema::hasTable('pengadaan_workflow_approvals') && $workflowSteps->isNotEmpty()
             ? DB::table('pengadaan_workflow_approvals')->whereIn('spj_id', $spjs->pluck('spj_id'))
@@ -233,8 +235,8 @@ class SpjUsulanBelanjaController extends Controller
                     : ($identity === 'direktur'
                         ? 'Direktur'
                         : ($workflowStep->validator_type === 'hierarchy'
-                        ? 'Validasi Atasan (Hirarki)'
-                        : trim($workflowStep->level_jabatan ?: $workflowStep->nama_role ?: $workflowStep->nama_validator ?: 'Validasi')));
+                            ? 'Validasi Atasan (Hirarki)'
+                            : trim($workflowStep->level_jabatan ?: $workflowStep->nama_role ?: $workflowStep->nama_validator ?: 'Validasi')));
                 $key = strtolower($nama);
                 $status = null;
                 $tanggal = null;
@@ -489,6 +491,8 @@ class SpjUsulanBelanjaController extends Controller
         $canManageSpj = $isAdmin
             || $spj->usulanBelanja->user_id === auth()->id()
             || DB::table('approvals')->where('workflow_instance_id', $spj->usulanBelanja->workflow_instance_id)->where('validator_user_id', auth()->id())->exists();
+        $isPaid = $this->spjHasPayment($spj);
+        $canManageItems = $canManageSpj && ! $isPaid;
 
         $hasPengadaanRole = auth()->user()->roles()->whereIn('nama_role', [
             'Administrator',
@@ -506,17 +510,105 @@ class SpjUsulanBelanjaController extends Controller
             'Bendahara',
         ], true) || app(PengadaanWorkflowController::class)->userCanAccessCurrentWorkflowStep($spj);
         $workflowChecklist = app(PengadaanWorkflowController::class)->workflowChecklistData($spj);
+        $masterApproval = DB::table('master_spjs')->where('spj_id', $spj->id)->first(['status_verifikasi_direktur']);
+        $directorChecklist = $workflowChecklist->first(fn ($stage) => str_contains(strtolower((string) ($stage['name'] ?? '')), 'direktur'));
+        $direkturApproved = ($directorChecklist['done'] ?? false)
+            || strtolower(trim((string) ($masterApproval->status_verifikasi_direktur ?? ''))) === 'selesai';
         $pengadaanData = $hasPengadaanRole
             ? app(PengadaanWorkflowController::class)->panelData($spj)
             : [];
         return view('usulan_belanja.spj.show', array_merge(
-            compact('spj', 'items', 'namaPerusahaan', 'isAdmin', 'availableItems', 'canManageSpj', 'program', 'kegiatan', 'rekeningBelanja', 'workflowChecklist') + ['pengadaanPanelData' => $pengadaanData],
+            compact('spj', 'items', 'namaPerusahaan', 'isAdmin', 'availableItems', 'canManageSpj', 'canManageItems', 'isPaid', 'program', 'kegiatan', 'rekeningBelanja', 'workflowChecklist', 'direkturApproved') + ['pengadaanPanelData' => $pengadaanData],
             $pengadaanData
         ));
     }
 
+    public function report(Request $request, Spj $spj)
+    {
+        $spj->loadMissing('usulanBelanja');
+        $this->authorizeSpjReportAccess($spj);
+
+        $pageData = $this->show($spj)->getData();
+        $pengadaan = app(PengadaanWorkflowController::class);
+        $checklist = $pengadaan->workflowChecklistData($spj);
+        $directorStage = $checklist->first(fn ($stage) => str_contains(strtolower((string) ($stage['name'] ?? '')), 'direktur'));
+        $master = DB::table('master_spjs as master')
+            ->leftJoin('perusahaans as provider', 'provider.id_perusahaan', '=', 'master.perusahaan_id')
+            ->where('master.spj_id', $spj->id)
+            ->first(['master.*', 'provider.nama_perusahaan']);
+        $directorApproved = ($directorStage['done'] ?? false)
+            || strtolower(trim((string) ($master->status_verifikasi_direktur ?? ''))) === 'selesai';
+        abort_unless($directorApproved, 403, 'Laporan SPJ tersedia setelah Direktur menyetujui SPJ.');
+
+        $spj->loadMissing([
+            'usulanBelanja.pengusul', 'usulanBelanja.unit', 'usulanBelanja.tahunAnggaran',
+            'usulanBelanja.rkbu.subKegiatan.kegiatan.program', 'usulanBelanja.rkbu.sumberDana',
+            'usulanBelanja.rkbu.subKategoriRkbu', 'usulanBelanja.rkbu.rekeningBelanja',
+            'usulanBelanja.sumberDana', 'details.item', 'details.rkbu.subKategoriRkbu',
+            'details.rkbu.rekeningBelanja',
+        ]);
+        $panelData = $pengadaan->panelData($spj);
+        $receipts = DB::table('spj_barang_datang')->where('spj_id', $spj->id)
+            ->orderBy('tanggal_datang')->orderBy('created_at')->get();
+        $logs = DB::table('pengadaan_workflow_logs')->leftJoin('users', 'users.id', '=', 'pengadaan_workflow_logs.user_id')
+            ->where('spj_id', $spj->id)->orderBy('pengadaan_workflow_logs.created_at')
+            ->get(['pengadaan_workflow_logs.*', 'users.nama as nama_user']);
+        $payments = Schema::hasTable('master_spj_payment_transactions') && $master
+            ? DB::table('master_spj_payment_transactions as payment')
+                ->leftJoin('users', 'users.id', '=', 'payment.user_id')
+                ->where('payment.master_spj_id', $master->id)
+                ->orderBy('payment.tanggal_pembayaran')->orderBy('payment.created_at')
+                ->get(['payment.*', 'users.nama as nama_bendahara'])
+            : collect();
+        $header = \App\Models\MasterBackend\SettingInput\JudulHeader::query()->first() ?? (object) [];
+        $rkbu = $spj->usulanBelanja?->rkbu;
+        $photoPaths = collect([
+            $spj->foto_barang_datang, $spj->foto_barang_datang_2, $spj->foto_barang_datang_3,
+        ])->merge($receipts->flatMap(fn ($receipt) => [$receipt->foto_utama, $receipt->foto_tambahan_2, $receipt->foto_tambahan_3]))
+            ->filter()->unique()->values();
+        $photos = $photoPaths->map(function ($path) {
+            $path = ltrim(str_replace('\\', '/', preg_replace('#^(public/|storage/)#', '', (string) $path)), '/');
+            if (str_contains($path, '../') || ! Storage::disk('public')->exists($path)) return null;
+            return ['path' => Storage::disk('public')->path($path), 'name' => basename($path)];
+        })->filter()->values();
+        $items = $pageData['items'] ?? collect();
+        $netto = (float) $items->sum('total_anggaran');
+        $ppn = (float) $items->sum('total_ppn');
+
+        $pdf = Pdf::loadView('usulan_belanja.spj.report', [
+            'spj' => $spj, 'usulan' => $spj->usulanBelanja, 'items' => $items,
+            'program' => $pageData['program'] ?? null, 'kegiatan' => $pageData['kegiatan'] ?? null,
+            'rekeningBelanja' => $pageData['rekeningBelanja'] ?? null, 'rkbu' => $rkbu,
+            'providerName' => $master->nama_perusahaan ?? ($pageData['namaPerusahaan'] ?? '-'),
+            'master' => $master, 'header' => $header, 'checklist' => $checklist,
+            'receipts' => $receipts, 'photos' => $photos, 'logs' => $logs,
+            'payments' => $payments, 'panelData' => $panelData,
+            'netto' => $netto, 'ppn' => $ppn, 'total' => $netto + $ppn,
+            'sumberDana' => $spj->usulanBelanja?->sumberDana ?? $rkbu?->sumberDana,
+        ])->setPaper('a4', 'portrait');
+
+        $filename = 'laporan-spj-' . \Illuminate\Support\Str::slug($spj->no_usulan_belanja . '-' . $spj->nomor_urut) . '.pdf';
+        return $request->boolean('download') ? $pdf->download($filename) : $pdf->stream($filename);
+    }
+
+    private function authorizeSpjReportAccess(Spj $spj): void
+    {
+        $user = auth()->user();
+        $allowed = $user->hasRole('Administrator') || $user->hasRole('Super Admin')
+            || $spj->usulanBelanja?->user_id === $user->id
+            || $user->roles()->whereIn('nama_role', [
+                'Admin Pengadaan', 'Pendukung PPK', 'Pengurus Barang', 'PPK', 'PPBJ', 'PPTK',
+                'Verifikator', 'Verifikator Pengadaan', 'PPK Keuangan', 'Bendahara',
+            ])->exists()
+            || in_array($user->position?->level_jabatan, ['PPK', 'PPBJ', 'PPTK', 'Verifikator', 'PPK Keuangan', 'Direktur', 'Bendahara'], true)
+            || DB::table('approvals')->where('workflow_instance_id', $spj->usulanBelanja?->workflow_instance_id)
+                ->where('validator_user_id', $user->id)->exists();
+        abort_unless($allowed, 403);
+    }
+
     public function addItem(Request $request, Spj $spj)
     {
+        $this->assertItemsNotPaid($spj);
         $spj->loadMissing('usulanBelanja');
         $usulan = $spj->usulanBelanja;
         $this->assertCanCreate($usulan);
@@ -571,6 +663,7 @@ class SpjUsulanBelanjaController extends Controller
 
     public function updateItem(Request $request, Spj $spj, \App\Models\UsulanBelanja\SpjDetail $detail, UsulanBelanjaBalanceService $balances)
     {
+        $this->assertItemsNotPaid($spj);
         abort_unless($detail->spj_id === $spj->id, 404);
         $spj->loadMissing('usulanBelanja');
         $usulan = $spj->usulanBelanja;
@@ -654,6 +747,7 @@ class SpjUsulanBelanjaController extends Controller
 
     public function deleteItem(Spj $spj, \App\Models\UsulanBelanja\SpjDetail $detail)
     {
+        $this->assertItemsNotPaid($spj);
         abort_unless($detail->spj_id === $spj->id, 404);
         abort_unless(auth()->user()->roles()->whereIn('nama_role', ['Administrator', 'Super Admin'])->exists(), 403);
 
@@ -669,6 +763,39 @@ class SpjUsulanBelanjaController extends Controller
         });
 
         return redirect()->route('usulan-belanja.spj.index')->with('success', 'Item berhasil dihapus dari SPJ.');
+    }
+
+    private function spjHasPayment(Spj $spj): bool
+    {
+        if (in_array(mb_strtolower(trim((string) $spj->status_spj)), ['sudah di bayar', 'sudah dibayar'], true)) {
+            return true;
+        }
+
+        $master = DB::table('master_spjs')->where('spj_id', $spj->id)->first([
+            'id',
+            'pembayaran',
+            'tanggal_pembayaran',
+            'status_pembayaran',
+        ]);
+        if (! $master) return false;
+
+        if (
+            in_array(mb_strtolower(trim((string) $master->status_pembayaran)), ['selesai', 'sudah di bayar', 'sudah dibayar'], true)
+            || (float) ($master->pembayaran ?? 0) > 0
+        ) {
+            return true;
+        }
+
+        return Schema::hasTable('master_spj_payment_transactions')
+            && DB::table('master_spj_payment_transactions')
+            ->where('master_spj_id', $master->id)
+            ->where('amount', '>', 0)
+            ->exists();
+    }
+
+    private function assertItemsNotPaid(Spj $spj): void
+    {
+        abort_unless(! $this->spjHasPayment($spj), 403, 'Item SPJ tidak dapat diubah karena SPJ sudah memiliki pembayaran.');
     }
 
     private function assertCanCreate(UsulanBelanja $usulanBelanja): void

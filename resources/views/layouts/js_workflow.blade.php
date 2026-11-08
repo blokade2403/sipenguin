@@ -454,9 +454,33 @@
         }
         const details = $('<details class="mt-2">').appendTo(historyCard);
         $('<summary>').text('Lihat rincian sebelum dan sesudah').appendTo(details);
-        $('<pre class="mt-2 mb-0">')
-            .text(JSON.stringify({ sebelum: entry.before, sesudah: entry.after }, null, 2))
-            .appendTo(details);
+        const table = $('<div class="table-responsive mt-3"><table class="table table-sm table-bordered align-middle mb-0"><thead><tr><th rowspan="2">Item</th><th colspan="3" class="text-center bg-light">Sebelum</th><th colspan="3" class="text-center bg-success-subtle">Sesudah</th><th rowspan="2">Selisih</th></tr><tr><th>Spesifikasi</th><th>Vol</th><th>Total</th><th>Spesifikasi</th><th>Vol</th><th>Total</th></tr></thead><tbody></tbody></table></div>');
+        const tbody = table.find('tbody');
+        const formatValue = function(value) {
+                if (value === null || value === undefined || value === '') return '—';
+                if (typeof value === 'number' && Number.isFinite(value)) return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(value);
+                return String(value);
+        };
+        const formatCurrency = function(value) {
+            return value === null || value === undefined || value === ''
+                ? '—'
+                : 'Rp ' + new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(Number(value) || 0);
+        };
+        (entry.comparisonRows || []).forEach(function(change) {
+            const row = $('<tr>');
+            const beforeCategory = change.category_before ? 'Sub Kategori: ' + change.category_before + ' — ' : '';
+            const afterCategory = change.category_after ? 'Sub Kategori: ' + change.category_after + ' — ' : '';
+            const before = change.before || {};
+            const after = change.after || {};
+            [change.name,
+                beforeCategory + (before.specification || '—'), formatValue(before.volume), formatCurrency(before.total),
+                afterCategory + (after.specification || '—'), formatValue(after.volume), formatCurrency(after.total),
+                formatCurrency(change.delta)]
+                .forEach(function(value) { $('<td>').text(value).appendTo(row); });
+            tbody.append(row);
+        });
+        if (!(entry.comparisonRows || []).length) $('<tr><td colspan="8" class="text-muted">Tidak ada rincian perubahan.</td></tr>').appendTo(tbody);
+        details.append(table);
         editHistoryList.append(historyCard);
     });
 

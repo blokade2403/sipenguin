@@ -23,6 +23,14 @@
                 </div>
             </div>
             <div class="card-toolbar">
+                @if ($direkturApproved ?? false)
+                    <a href="{{ route('usulan-belanja.spj.report', $spj->id) }}" target="_blank" rel="noopener" class="btn btn-light-primary me-2">
+                        <i class="fas fa-eye me-1"></i>Preview PDF
+                    </a>
+                    <a href="{{ route('usulan-belanja.spj.report', ['spj' => $spj->id, 'download' => 1]) }}" class="btn btn-primary me-3">
+                        <i class="fas fa-download me-1"></i>Unduh PDF
+                    </a>
+                @endif
                 <span class="badge badge-light-{{ $statusSpjTone }} fs-7 me-3 spj-status-badge">{{ $spj->status_spj ?: 'Belum diproses' }}</span>
                 <a href="{{ route('usulan-belanja.spj.index') }}" class="btn btn-light-primary">
                     <i class="ki-duotone ki-arrow-left fs-4 me-1"><span class="path1"></span><span class="path2"></span></i>Kembali
@@ -79,7 +87,14 @@
 
            
 
-            @if ($canManageSpj)
+            @if ($isPaid)
+                <div class="alert alert-warning d-flex align-items-center mb-6">
+                    <i class="ki-duotone ki-lock fs-2 me-3"><span class="path1"></span><span class="path2"></span></i>
+                    SPJ ini sudah memiliki pembayaran. Item dikunci agar dokumen dan nilai pembayaran tidak berubah.
+                </div>
+            @endif
+
+            @if ($canManageItems)
                 <details class="spj-add-items mb-6">
                     <summary class="btn btn-sm btn-light-success">
                         <i class="ki-duotone ki-plus fs-4 me-1"><span class="path1"></span><span class="path2"></span></i>Tambah Item
@@ -168,6 +183,7 @@
                                 </td>
                                 <td class="spj-item-action-cell">
                                     <div class="spj-item-actions">
+                                    @if ($canManageItems)
                                     <details>
                                         <summary class="btn btn-sm btn-light-primary">Edit</summary>
                                         <form method="POST"
@@ -201,6 +217,14 @@
                                             <button type="submit" class="btn btn-sm btn-light-danger">Hapus</button>
                                         </form>
                                     @endif
+                                    @elseif ($isPaid)
+                                        <button type="button" class="btn btn-sm btn-light-primary" disabled title="SPJ sudah dibayar">Edit</button>
+                                        @if ($isAdmin)
+                                            <button type="button" class="btn btn-sm btn-light-danger" disabled title="SPJ sudah dibayar">Hapus</button>
+                                        @endif
+                                    @else
+                                        <span class="text-muted">-</span>
+                                    @endif
                                     </div>
                                 </td>
                             </tr>
@@ -229,27 +253,24 @@
                         <span class="badge badge-light-primary">{{ $workflowChecklist->where('done', true)->count() }} / {{ $workflowChecklist->count() }} tahap selesai</span>
                     @endif
                 </div>
-                <div class="card-body p-0">
+                <div class="card-body">
                     @if ($workflowChecklist->isNotEmpty())
-                        <div class="table-responsive">
-                            <table class="table table-bordered align-middle text-center mb-0 spj-verification-table">
-                                <thead><tr><th class="text-start">Status Verifikasi</th>
-                                    @foreach ($workflowChecklist as $workflowStatus)
-                                        <th>{{ $workflowStatus['name'] }}</th>
-                                    @endforeach
-                                </tr></thead>
-                                <tbody><tr><th class="text-start fw-semibold">Pelaksanaan Tahap</th>
-                                    @foreach ($workflowChecklist as $workflowStatus)
-                                        <td>
-                                            @if ($workflowStatus['done'])
-                                                <span class="workflow-check is-done" title="Selesai{{ $workflowStatus['acted_at'] ? ' pada '.\Carbon\Carbon::parse($workflowStatus['acted_at'])->format('d/m/Y H:i') : '' }}" aria-label="Selesai"><i class="fas fa-check"></i></span>
-                                            @else
-                                                <span class="workflow-check is-pending" title="Belum dilaksanakan" aria-label="Belum dilaksanakan"></span>
+                        <div class="row g-3 spj-workflow-step-grid">
+                            @foreach ($workflowChecklist as $workflowStatus)
+                                <div class="col-12 col-sm-6 col-xl-4 col-xxl-3">
+                                    <article class="spj-workflow-step-card {{ $workflowStatus['done'] ? 'is-done' : 'is-pending' }}">
+                                        <div class="spj-workflow-step-icon"><i class="fas {{ $workflowStatus['done'] ? 'fa-check' : 'fa-clock' }}"></i></div>
+                                        <div class="spj-workflow-step-copy">
+                                            <span class="spj-workflow-step-order">Tahap {{ $workflowStatus['order'] ?? $loop->iteration }}</span>
+                                            <strong>{{ $workflowStatus['name'] }}</strong>
+                                            <span class="badge badge-light-{{ $workflowStatus['done'] ? 'success' : 'warning' }}">{{ $workflowStatus['done'] ? 'Selesai' : 'Menunggu' }}</span>
+                                            @if ($workflowStatus['acted_at'])
+                                                <small>{{ \Carbon\Carbon::parse($workflowStatus['acted_at'])->translatedFormat('d M Y, H:i') }}</small>
                                             @endif
-                                        </td>
-                                    @endforeach
-                                </tr></tbody>
-                            </table>
+                                        </div>
+                                    </article>
+                                </div>
+                            @endforeach
                         </div>
                     @else
                         <div class="text-muted text-center py-7">Workflow pengadaan belum memiliki step untuk subkategori ini.</div>
@@ -263,8 +284,8 @@
             <div class="spj-workflow-heading">
                 <div class="spj-detail-heading-icon"><i class="ki-duotone ki-route fs-2x text-primary"><span class="path1"></span><span class="path2"></span></i></div>
                 <div>
-                    <h4 class="fw-bold text-gray-900 mb-1">Alur Pengadaan dan Validasi</h4>
-                    <div class="text-muted fs-7">Riwayat proses dan tindakan yang tersedia pada tahap SPJ ini.</div>
+                    <h4 class="fw-bold text-gray-900 mb-1">Rangkaian Tahap SPJ</h4>
+                    <div class="text-muted fs-7">Status tiap tahap, formulir, dokumen, dan riwayat proses.</div>
                 </div>
             </div>
             <div class="spj-workflow-content">
@@ -298,13 +319,16 @@
     .spj-detail-info-card, .spj-items-card { overflow: hidden; border: 1px solid #e9edf4 !important; border-radius: 14px; box-shadow: 0 4px 16px rgba(31,45,61,.035) !important; }
     .spj-verification-card { overflow: hidden; border: 1px solid #e9edf4 !important; border-radius: 14px; box-shadow: 0 4px 16px rgba(31,45,61,.035) !important; }
     .spj-verification-card > .card-header { border-bottom: 1px solid #edf0f5; }
-    .spj-verification-table { min-width: max-content; }
-    .spj-verification-table th { min-width: 112px; padding: 15px 17px; background: #f4f7fa; color: #25364d; font-size: 12px; white-space: nowrap; }
-    .spj-verification-table th:first-child { min-width: 210px; }
-    .spj-verification-table td { min-width: 112px; padding: 14px; }
-    .workflow-check { display: inline-grid; place-items: center; width: 19px; height: 19px; border-radius: 5px; }
-    .workflow-check.is-done { background: #a89ae1; color: #fff; font-size: 11px; }
-    .workflow-check.is-pending { background: #eef0f2; }
+    .spj-workflow-step-card { display: flex; align-items: flex-start; gap: 13px; min-height: 118px; height: 100%; padding: 16px; border: 1px solid #e8edf4; border-radius: 13px; background: #fff; box-shadow: 0 3px 12px rgba(31,45,61,.035); transition: transform .16s ease, box-shadow .16s ease; }
+    .spj-workflow-step-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(31,45,61,.08); }
+    .spj-workflow-step-card.is-done { border-color: #d5eee1; background: linear-gradient(145deg,#f5fcf8,#fff 72%); }
+    .spj-workflow-step-card.is-pending { border-color: #f1e4bf; background: linear-gradient(145deg,#fffaf0,#fff 72%); }
+    .spj-workflow-step-icon { display: grid; place-items: center; flex: 0 0 36px; width: 36px; height: 36px; border-radius: 11px; background: #e5f6ec; color: #159451; }
+    .spj-workflow-step-card.is-pending .spj-workflow-step-icon { background: #fff0ca; color: #bc8300; }
+    .spj-workflow-step-copy { display: flex; flex-direction: column; align-items: flex-start; gap: 7px; min-width: 0; }
+    .spj-workflow-step-copy strong { color: #263449; font-size: 13px; line-height: 1.4; overflow-wrap: anywhere; }
+    .spj-workflow-step-copy small, .spj-workflow-step-order { color: #8994a5; font-size: 11px; }
+    .spj-workflow-step-copy .badge { padding: 5px 9px; }
     .spj-detail-info-card > .card-header, .spj-items-card > .card-header { border-bottom: 1px solid #edf0f5; background: #f8faff !important; }
     .spj-detail-info-row { display: flex; align-items: flex-start; gap: 15px; height: calc(100% - 12px); min-height: 58px; margin: 6px; padding: 12px 14px; border: 1px solid #edf0f5; border-radius: 10px; background: #fff; }
     .spj-detail-info-row span { flex: 0 0 145px; color: #8a94a6; font-size: 12px; font-weight: 650; }
@@ -328,7 +352,29 @@
     .spj-workflow-heading { display: flex; align-items: center; gap: 15px; margin-bottom: 14px; padding: 18px 20px; border: 1px solid #e7efff; border-radius: 14px; background: linear-gradient(110deg, #f2f7ff, #fff 68%); }
     .spj-workflow-content { padding: 0 2px; }
     .spj-workflow-content > .mt-8 { margin-top: 0 !important; }
-    .spj-workflow-content > .mt-8 > .card { border: 1px solid #e8edf5; border-radius: 10px; box-shadow: 0 3px 14px #181c320a; }
+    .spj-workflow-process { display: flex; flex-direction: column; gap: 18px; margin-top: 18px; }
+    .spj-workflow-current-heading { display: flex; align-items: center; gap: 16px; padding: 20px 22px; border: 1px solid #dfeaff; border-radius: 16px; background: linear-gradient(115deg,#edf5ff,#fff 72%); box-shadow: 0 5px 18px rgba(31,45,61,.035); }
+    .spj-workflow-current-heading h4 { color: #1d2d44; font-weight: 750; }
+    .spj-workflow-current-heading p { color: #7d899b; font-size: 13px; }
+    .spj-workflow-current-eyebrow, .spj-stage-kicker { display: block; margin-bottom: 5px; color: #5182c4; font-size: 10px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }
+    .spj-workflow-current-icon { display: grid; place-items: center; flex: 0 0 46px; width: 46px; height: 46px; border-radius: 14px; background: #fff; color: #3284df; box-shadow: 0 4px 14px rgba(50,132,223,.12); font-size: 18px; }
+    .spj-workflow-current-badge { flex: 0 0 auto; padding: 9px 12px; white-space: normal; text-align: center; }
+    .spj-workflow-process-body { display: flex; flex-direction: column; gap: 18px; }
+    .spj-workflow-context { display: flex; flex-wrap: wrap; gap: 8px 20px; padding: 13px 16px; border: 1px solid #e5edf7; border-radius: 12px; background: #f8fbff; color: #5f6d80; font-size: 12px; }
+    .spj-workflow-context strong { color: #344054; }
+    .spj-stage-summary-card { overflow: hidden; border: 1px solid #e7edf5 !important; border-radius: 15px; box-shadow: 0 5px 18px rgba(31,45,61,.04) !important; }
+    .spj-stage-summary-card > .card-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 68px; padding: 15px 20px; border-bottom: 1px solid #edf1f6; background: #f8faff; }
+    .spj-stage-summary-card > .card-header .card-title { margin: 0; color: #263449; font-weight: 750; }
+    .spj-stage-summary-card > .card-body { padding: clamp(16px,2.5vw,24px); }
+    .spj-stage-summary-success { border-color: #d7eee2 !important; }
+    .spj-stage-summary-success > .card-header { background: #f3fbf6; }
+    .spj-summary-label { display: block; margin-bottom: 5px; color: #8a94a6; font-size: 10px; font-weight: 750; letter-spacing: .05em; text-transform: uppercase; }
+    .spj-stage-summary-card .row strong { display: block; color: #344054; font-size: 13px; overflow-wrap: anywhere; }
+    .spj-history-event { padding: 15px 17px; border: 1px solid #e8edf4; border-left: 3px solid #82aef2; border-radius: 11px; background: #fff; }
+    .spj-history-event + .spj-history-event { margin-top: 10px; }
+    .spj-history-event strong { color: #263449; }
+    .spj-history-event .spj-history-meta { color: #8994a5; font-size: 11px; }
+    .spj-history-event .spj-history-transition { margin-top: 4px; color: #5f6d80; font-size: 12px; }
     @media (max-width: 767.98px) {
         .spj-detail-shell > .card-header { align-items: flex-start; flex-direction: column; padding: 1.2rem !important; }
         .spj-detail-shell > .card-header .card-toolbar { width: 100%; justify-content: space-between; }
@@ -336,6 +382,11 @@
         .spj-detail-info-row span { flex-basis: auto; }
         .spj-workflow-heading { align-items: flex-start; padding: 15px; }
         .spj-items-card > .card-header { align-items: flex-start; flex-direction: column; gap: 12px; padding-top: 16px; padding-bottom: 16px; }
+        .spj-workflow-current-heading { align-items: flex-start; flex-wrap: wrap; padding: 16px; }
+        .spj-workflow-current-icon { flex-basis: 40px; width: 40px; height: 40px; }
+        .spj-workflow-current-badge { margin-left: 56px; }
+        .spj-workflow-context { flex-direction: column; gap: 8px; }
+        .spj-stage-summary-card > .card-header { align-items: flex-start; padding: 14px 16px; }
     }
 </style>
 @endsection

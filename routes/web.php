@@ -63,6 +63,7 @@ use App\Http\Controllers\WorkFlow\ApprovalController;
 use App\Http\Controllers\WorkFlow\PositionSubKategoriRkbuController;
 use App\Http\Controllers\WorkFlow\PptkKategoriController;
 use App\Http\Controllers\Workflow\WorkflowApprovalController;
+use App\Http\Controllers\WorkFlow\RkbuEditHistoryController;
 use App\Http\Controllers\WorkFlow\WorkflowController;
 use App\Http\Controllers\WorkFlow\WorkflowStepController;
 use App\Http\Controllers\WorkFlow\WorkflowStepPptkController;
@@ -200,6 +201,8 @@ Route::middleware('auth')->group(function () {
         ->name('workflowapproval.')
         ->group(function () {
 
+            Route::get('/rkbu-history', [RkbuEditHistoryController::class, 'index'])->name('rkbu-history');
+
             Route::get(
                 '/approval',
                 [WorkflowApprovalController::class, 'index']
@@ -328,6 +331,8 @@ Route::middleware('auth')->group(function () {
                 ->name('spj.providers');
             Route::get('/spj/{spj}', [SpjUsulanBelanjaController::class, 'show'])
                 ->name('spj.show');
+            Route::get('/spj/{spj}/laporan', [SpjUsulanBelanjaController::class, 'report'])
+                ->name('spj.report');
             Route::get('/pengadaan', [PengadaanWorkflowController::class, 'index'])
                 ->name('pengadaan.index');
             Route::get('/pengadaan/{spj}', [PengadaanWorkflowController::class, 'show'])

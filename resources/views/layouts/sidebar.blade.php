@@ -288,11 +288,17 @@
                                          <span class="menu-title">Tanggal Pengesahan</span>
                                      </a>
                                  </div>
-                                 @if (auth()->user()?->hasRole('Administrator'))
+                                 @if (auth()->user()?->hasRole('Super Admin'))
                                      <div class="menu-item">
                                          <a class="menu-link" href="{{ route('pagu_anggaran.index') }}">
                                              <span class="menu-bullet"><span class="bullet bullet-dot"></span></span>
                                              <span class="menu-title">Pagu Anggaran</span>
+                                         </a>
+                                     </div>
+                                     <div class="menu-item">
+                                         <a class="menu-link" href="{{ route('workflowapproval.rkbu-history') }}">
+                                             <span class="menu-bullet"><span class="bullet bullet-dot"></span></span>
+                                             <span class="menu-title">Riwayat Perubahan RKBU</span>
                                          </a>
                                      </div>
                                  @endif

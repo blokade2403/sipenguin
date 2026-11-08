@@ -39,7 +39,7 @@
             </div>
         @else
             <div class="row g-5 mb-6">
-                @foreach ([['label' => 'Anggaran BLUD', 'value' => $summary['anggaran'], 'color' => 'primary'], ['label' => 'Proses Pengadaan', 'value' => $summary['pengadaan'], 'color' => 'info'], ['label' => 'SPJ di Keuangan', 'value' => $summary['keuangan'], 'color' => 'warning'], ['label' => 'Realisasi', 'value' => $summary['realisasi'], 'color' => 'success'], ['label' => 'Sisa Anggaran', 'value' => $summary['sisa'], 'color' => 'danger']] as $card)
+                @foreach ([['label' => 'Anggaran BLUD', 'value' => $summary['anggaran'], 'color' => 'primary'], ['label' => 'Usulan Belanja', 'value' => $summary['usulan'], 'color' => 'primary'], ['label' => 'Proses Pengadaan', 'value' => $summary['pengadaan'], 'color' => 'info'], ['label' => 'SPJ di Keuangan', 'value' => $summary['keuangan'], 'color' => 'warning'], ['label' => 'Realisasi', 'value' => $summary['realisasi'], 'color' => 'success'], ['label' => 'Sisa Anggaran', 'value' => $summary['sisa'], 'color' => 'danger']] as $card)
                     <div class="col-xl col-md-4 col-sm-6"><div class="card monitoring-stat-card h-100 border-0 shadow-sm"><div class="card-body p-5"><div class="text-muted fw-semibold mb-2">{{ $card['label'] }}</div><div class="monitoring-stat-value fs-3 fw-bold text-{{ $card['color'] }}">{{ $rupiah($card['value']) }}</div>@if ($card['label'] === 'Realisasi')<div class="text-muted fs-8 mt-2">{{ $summary['persentase'] }}% dari pagu BLUD</div>@endif</div></div></div>
                 @endforeach
             </div>
@@ -49,7 +49,7 @@
             <div class="card-header border-0 pt-6">
                 <div class="card-title d-flex flex-column">
                     <h2 class="fw-bold text-gray-900 mb-1">{{ $source === 'BLUD' ? 'Rincian Subkategori RKBU BLUD' : 'Program, Kegiatan, dan Rekening Belanja' }}</h2>
-                    <span class="text-muted fs-7">{{ $source === 'BLUD' ? 'Pagu pada rekening utama; rincian anggaran mengikuti RKBU disetujui per jenis, kategori, dan subkategori. Proses dan realisasi mengikuti usulan disetujui.' : 'Anggaran dari pagu rekening; proses dan realisasi berdasarkan usulan yang disetujui' }}</span>
+                    <span class="text-muted fs-7">{{ $source === 'BLUD' ? 'Pagu pada rekening utama; rincian mengikuti RKBU disetujui. Usulan disetujui sebelum input surat pesanan ditampilkan di Usulan Belanja; setelah surat pesanan diinput, nilainya masuk Proses Pengadaan.' : 'Anggaran dari pagu rekening; usulan disetujui sebelum input surat pesanan ditampilkan terpisah dari proses pengadaan.' }}</span>
                 </div>
                 <div class="card-toolbar"><span class="monitoring-realization-pill"><span class="monitoring-live-dot"></span>Realisasi {{ number_format($summary['persentase'], 2, ',', '.') }}%</span></div>
             </div>
@@ -60,10 +60,11 @@
                             <th class="text-white">#</th>
                             <th class="text-white">{{ $source === 'BLUD' ? 'Kode Rek. Belanja / Kegiatan' : 'Uraian / Kode Rekening Belanja' }}</th>
                             <th class="text-end text-white">Anggaran</th>
+                            <th class="text-end text-white">Usulan Belanja</th>
                             @if ($source === 'BLUD')
                                 <th class="text-end text-white">Proses Pengadaan</th><th class="text-end text-white">SPJ di Keuangan</th>
                             @else
-                                <th class="text-end text-white">Proses Bendahara</th>
+                                <th class="text-end text-white">Proses Pengadaan</th><th class="text-end text-white">Proses Bendahara</th>
                             @endif
                             <th class="text-end text-white">Realisasi</th>
                             @if ($source === 'BLUD')<th class="text-end text-white">Sisa</th>@endif
@@ -75,22 +76,24 @@
                                     <td>{{ $index + 1 }}</td>
                                     <td><div class="monitoring-label" style="--row-level: {{ min($row['level'], 8) }}">@if ($source === 'BLUD')<span class="monitoring-code">{{ $row['kode'] }}</span><span class="monitoring-separator">·</span>{{ $row['nama'] }}@else{{ $row['label'] }}@endif</div></td>
                                     <td class="text-end">{{ number_format($row['anggaran'], 0, ',', '.') }}</td>
+                                    <td class="text-end">{{ number_format($row['usulan'], 0, ',', '.') }}</td>
                                     @if ($source === 'BLUD')
                                         <td class="text-end">{{ number_format($row['pengadaan'], 0, ',', '.') }}</td>
                                         <td class="text-end">{{ number_format($row['keuangan'], 0, ',', '.') }}</td>
                                     @else
-                                        <td class="text-end">{{ number_format($row['pengadaan'] + $row['keuangan'], 0, ',', '.') }}</td>
+                                        <td class="text-end">{{ number_format($row['pengadaan'], 0, ',', '.') }}</td>
+                                        <td class="text-end">{{ number_format($row['keuangan'], 0, ',', '.') }}</td>
                                     @endif
                                     <td class="text-end">{{ number_format($row['realisasi'], 0, ',', '.') }}</td>
                                     @if ($source === 'BLUD')<td class="text-end">{{ number_format($row['sisa'], 0, ',', '.') }}</td>@endif
                                     <td class="text-end">{{ number_format($row['persentase'], 2, ',', '.') }}%</td>
                                 </tr>
                             @empty
-                                <tr><td colspan="8" class="text-center text-muted py-8">Belum ada pagu atau transaksi anggaran untuk filter ini.</td></tr>
+                                <tr><td colspan="{{ $source === 'BLUD' ? 9 : 8 }}" class="text-center text-muted py-8">Belum ada pagu atau transaksi anggaran untuk filter ini.</td></tr>
                             @endforelse
                         </tbody>
-                        <tfoot><tr class="monitoring-total"><th colspan="2">TOTAL</th><th class="text-end">{{ number_format($summary['anggaran'], 0, ',', '.') }}</th>
-                            @if ($source === 'BLUD')<th class="text-end">{{ number_format($summary['pengadaan'], 0, ',', '.') }}</th><th class="text-end">{{ number_format($summary['keuangan'], 0, ',', '.') }}</th>@else<th class="text-end">{{ number_format($summary['pengadaan'] + $summary['keuangan'], 0, ',', '.') }}</th>@endif
+                        <tfoot><tr class="monitoring-total"><th colspan="2">TOTAL</th><th class="text-end">{{ number_format($summary['anggaran'], 0, ',', '.') }}</th><th class="text-end">{{ number_format($summary['usulan'], 0, ',', '.') }}</th>
+                            @if ($source === 'BLUD')<th class="text-end">{{ number_format($summary['pengadaan'], 0, ',', '.') }}</th><th class="text-end">{{ number_format($summary['keuangan'], 0, ',', '.') }}</th>@else<th class="text-end">{{ number_format($summary['pengadaan'], 0, ',', '.') }}</th><th class="text-end">{{ number_format($summary['keuangan'], 0, ',', '.') }}</th>@endif
                             <th class="text-end">{{ number_format($summary['realisasi'], 0, ',', '.') }}</th>
                             @if ($source === 'BLUD')<th class="text-end">{{ number_format($summary['sisa'], 0, ',', '.') }}</th>@endif
                             <th class="text-end">{{ number_format($summary['persentase'], 2, ',', '.') }}%</th>
