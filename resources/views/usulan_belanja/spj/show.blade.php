@@ -208,7 +208,7 @@
                                             <button type="submit" class="btn btn-sm btn-primary">Simpan</button>
                                         </form>
                                     </details>
-                                    @if ($isAdmin)
+                                    @if ($canManageItems)
                                         <form method="POST"
                                             action="{{ route('usulan-belanja.spj.items.delete', [$spj->id, $item->spj_detail_id]) }}"
                                             class="m-0" onsubmit="return confirm('Hapus item ini dari SPJ?');">
@@ -219,7 +219,7 @@
                                     @endif
                                     @elseif ($isPaid)
                                         <button type="button" class="btn btn-sm btn-light-primary" disabled title="SPJ sudah dibayar">Edit</button>
-                                        @if ($isAdmin)
+                                        @if ($isAdmin || $canManageItemRoles)
                                             <button type="button" class="btn btn-sm btn-light-danger" disabled title="SPJ sudah dibayar">Hapus</button>
                                         @endif
                                     @else

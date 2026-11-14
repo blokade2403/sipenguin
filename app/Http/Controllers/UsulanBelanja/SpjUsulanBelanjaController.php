@@ -488,11 +488,10 @@ class SpjUsulanBelanjaController extends Controller
             ->filter(fn($item) => $item->spj_remaining_volume > 0)
             ->values();
         $isAdmin = auth()->user()->roles()->whereIn('nama_role', ['Administrator', 'Super Admin'])->exists();
-        $canManageSpj = $isAdmin
-            || $spj->usulanBelanja->user_id === auth()->id()
-            || DB::table('approvals')->where('workflow_instance_id', $spj->usulanBelanja->workflow_instance_id)->where('validator_user_id', auth()->id())->exists();
+        $canManageSpj = $this->canManageSpjItems($spj);
         $isPaid = $this->spjHasPayment($spj);
         $canManageItems = $canManageSpj && ! $isPaid;
+        $canManageItemRoles = $this->userHasSpjItemManagementRole();
 
         $hasPengadaanRole = auth()->user()->roles()->whereIn('nama_role', [
             'Administrator',
@@ -518,7 +517,7 @@ class SpjUsulanBelanjaController extends Controller
             ? app(PengadaanWorkflowController::class)->panelData($spj)
             : [];
         return view('usulan_belanja.spj.show', array_merge(
-            compact('spj', 'items', 'namaPerusahaan', 'isAdmin', 'availableItems', 'canManageSpj', 'canManageItems', 'isPaid', 'program', 'kegiatan', 'rekeningBelanja', 'workflowChecklist', 'direkturApproved') + ['pengadaanPanelData' => $pengadaanData],
+            compact('spj', 'items', 'namaPerusahaan', 'isAdmin', 'availableItems', 'canManageSpj', 'canManageItems', 'canManageItemRoles', 'isPaid', 'program', 'kegiatan', 'rekeningBelanja', 'workflowChecklist', 'direkturApproved') + ['pengadaanPanelData' => $pengadaanData],
             $pengadaanData
         ));
     }
@@ -611,7 +610,7 @@ class SpjUsulanBelanjaController extends Controller
         $this->assertItemsNotPaid($spj);
         $spj->loadMissing('usulanBelanja');
         $usulan = $spj->usulanBelanja;
-        $this->assertCanCreate($usulan);
+        $this->assertCanManageSpjItems($spj);
         $this->assertApproved($usulan);
         $validated = $request->validate([
             'item_id' => ['required', 'uuid'],
@@ -667,7 +666,7 @@ class SpjUsulanBelanjaController extends Controller
         abort_unless($detail->spj_id === $spj->id, 404);
         $spj->loadMissing('usulanBelanja');
         $usulan = $spj->usulanBelanja;
-        $this->assertCanCreate($usulan);
+        $this->assertCanManageSpjItems($spj);
         $this->assertApproved($usulan);
 
         $validated = $request->validate([
@@ -749,9 +748,17 @@ class SpjUsulanBelanjaController extends Controller
     {
         $this->assertItemsNotPaid($spj);
         abort_unless($detail->spj_id === $spj->id, 404);
-        abort_unless(auth()->user()->roles()->whereIn('nama_role', ['Administrator', 'Super Admin'])->exists(), 403);
+        $this->assertCanManageSpjItems($spj);
+
+        if (Schema::hasTable('assets') && DB::table('assets')->where('spj_detail_id', $detail->id)->exists()) {
+            throw ValidationException::withMessages(['item' => 'Item tidak dapat dihapus karena sudah tercatat sebagai aset.']);
+        }
+        if (Schema::hasTable('persediaan_transactions') && DB::table('persediaan_transactions')->where('spj_detail_id', $detail->id)->exists()) {
+            throw ValidationException::withMessages(['item' => 'Item tidak dapat dihapus karena sudah memiliki transaksi persediaan.']);
+        }
 
         DB::transaction(function () use ($spj, $detail) {
+            UsulanBelanja::query()->whereKey($spj->usulan_belanja_id)->lockForUpdate()->firstOrFail();
             $lockedDetail = DB::table('spj_details')
                 ->where('id', $detail->id)
                 ->where('spj_id', $spj->id)
@@ -762,7 +769,8 @@ class SpjUsulanBelanjaController extends Controller
             DB::table('spj_details')->where('id', $detail->id)->delete();
         });
 
-        return redirect()->route('usulan-belanja.spj.index')->with('success', 'Item berhasil dihapus dari SPJ.');
+        return redirect()->route('usulan-belanja.spj.create', $spj->usulan_belanja_id)
+            ->with('success', 'Item dihapus dari SPJ dan volumenya tersedia kembali untuk dibagi ke SPJ.');
     }
 
     private function spjHasPayment(Spj $spj): bool
@@ -803,19 +811,43 @@ class SpjUsulanBelanjaController extends Controller
         abort_unless(
             $this->canCreateFor($usulanBelanja),
             403,
-            'Hanya Administrator atau petugas pada Workflow Pengadaan langkah pertama yang dapat membuat atau menambah SPJ.'
+            'Hanya Administrator, Admin Pengadaan, PPBJ, PPK, atau petugas pada langkah pertama Workflow Pengadaan yang dapat membuat atau menambah SPJ.'
         );
     }
 
     public function canCreateFor(UsulanBelanja $usulanBelanja): bool
     {
         $user = auth()->user();
-        if ($user->roles()->whereIn('nama_role', ['Administrator', 'Super Admin'])->exists()) {
+        if ($user->roles()->whereIn('nama_role', ['Administrator', 'Super Admin', 'Admin Pengadaan', 'PPBJ', 'PPK'])->exists()) {
             return true;
         }
 
         $step = $this->firstPengadaanWorkflowStep($usulanBelanja);
         return $step && $this->userMatchesFirstPengadaanStep($user, $step, $usulanBelanja);
+    }
+
+    private function userHasSpjItemManagementRole(): bool
+    {
+        return auth()->user()->roles()
+            ->whereIn('nama_role', ['Admin Pengadaan', 'PPBJ', 'PPK'])
+            ->exists();
+    }
+
+    private function canManageSpjItems(Spj $spj): bool
+    {
+        $user = auth()->user();
+        $usulan = $spj->usulanBelanja;
+
+        return $user->roles()->whereIn('nama_role', ['Administrator', 'Super Admin'])->exists()
+            || $this->userHasSpjItemManagementRole()
+            || $usulan?->user_id === $user->id
+            || ($usulan && DB::table('approvals')->where('workflow_instance_id', $usulan->workflow_instance_id)->where('validator_user_id', $user->id)->exists())
+            || ($usulan && $this->canCreateFor($usulan));
+    }
+
+    private function assertCanManageSpjItems(Spj $spj): void
+    {
+        abort_unless($this->canManageSpjItems($spj), 403, 'Anda tidak memiliki akses untuk mengelola item pada SPJ ini.');
     }
 
     private function firstPengadaanWorkflowStep(?UsulanBelanja $usulanBelanja = null): ?object

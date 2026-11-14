@@ -11,6 +11,9 @@
         </div>
     </div>
     <div class="card-body">
+        @if (session('success'))
+            <div class="alert alert-success">{{ session('success') }}</div>
+        @endif
         @if($errors->any())
             <div class="alert alert-danger">
                 <ul class="mb-0">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
@@ -28,6 +31,13 @@
             @php($formGroups = old('groups', [['items' => [], 'perusahaan_id' => '']]))
             <form method="POST" action="{{ route('usulan-belanja.spj.store', $usulanBelanja->id) }}" id="spj-group-form">
                 @csrf
+                <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4 spj-item-search-toolbar">
+                    <div>
+                        <label for="spj-item-search" class="form-label fw-semibold mb-1">Cari item usulan</label>
+                        <input type="search" id="spj-item-search" class="form-control" placeholder="Nama barang, spesifikasi, atau ID item..." autocomplete="off">
+                    </div>
+                    <span id="spj-item-search-count" class="text-muted fs-7" aria-live="polite"></span>
+                </div>
                 <div id="spj-groups" class="d-flex flex-column gap-5">
                     @foreach($formGroups as $groupIndex => $group)
                         <div class="card card-bordered spj-group ub-allocation-group">
@@ -47,9 +57,9 @@
                                         @endforeach
                                     </select>
                                 </div>
-                                <div class="row g-3">
+                                <div class="row g-3 spj-items-grid">
                                     @foreach($items as $item)
-                                        <div class="col-lg-6">
+                                        <div class="col-lg-6 spj-item-card" data-item-search="{{ mb_strtolower($item->nama_barang.' '.($item->spesifikasi ?? '').' '.$item->link_id) }}">
                                             <label class="border rounded p-3 d-flex gap-3 align-items-start h-100 spj-item-option ub-spj-item-option">
                                                 <input class="form-control form-control-sm spj-item-volume" type="number" min="0" max="{{ $item->spj_remaining_volume }}" step="0.001"
                                                        name="groups[{{ $groupIndex }}][items][{{ $item->link_id }}]"
@@ -95,9 +105,9 @@
                                 @endforeach
                             </select>
                         </div>
-                        <div class="row g-3">
+                        <div class="row g-3 spj-items-grid">
                             @foreach($items as $item)
-                                <div class="col-lg-6">
+                                <div class="col-lg-6 spj-item-card" data-item-search="{{ mb_strtolower($item->nama_barang.' '.($item->spesifikasi ?? '').' '.$item->link_id) }}">
                                     <label class="border rounded p-3 d-flex gap-3 align-items-start h-100 spj-item-option ub-spj-item-option">
                                         <input class="form-control form-control-sm spj-item-volume" type="number" min="0" max="{{ $item->spj_remaining_volume }}" step="0.001"
                                                name="groups[__INDEX__][items][{{ $item->link_id }}]"
@@ -128,6 +138,8 @@
     .ub-spj-item-option { width:100%; border-color:#e8edf5!important; background:#fff; transition:border-color .15s ease,box-shadow .15s ease; cursor:pointer; }
     .ub-spj-item-option:hover { border-color:#b8d3ff!important; box-shadow:0 4px 14px #3699ff12; }
     .ub-spj-item-option .spj-item-volume { width:88px; min-width:72px; flex:0 0 88px; }
+    .spj-item-search-toolbar > div { width:min(100%,560px); }
+    .spj-item-search-toolbar .form-control { min-height:44px; }
     @media(max-width:575.98px) { .ub-page-header { padding:16px; } .ub-spj-item-option { flex-wrap:wrap; } .ub-spj-item-option .spj-item-volume { width:100%; flex:1 1 100%; } #spj-group-form > .d-flex.justify-content-between { align-items:stretch!important; flex-direction:column; gap:12px; } #spj-group-form > .d-flex.justify-content-between > div { justify-content:flex-end; } }
 </style>
 @endsection
@@ -138,6 +150,8 @@
         const groups = document.getElementById('spj-groups');
         if (!groups) return;
         const template = document.getElementById('spj-group-template');
+        const searchInput = document.getElementById('spj-item-search');
+        const searchCount = document.getElementById('spj-item-search-count');
         let nextIndex = Math.max(-1, ...Array.from(groups.querySelectorAll('.spj-item-volume')).map(input => {
             const match = input.name.match(/^groups\[(\d+)\]/);
             return match ? Number(match[1]) : -1;
@@ -160,7 +174,26 @@
                 const title = group.querySelector('.card-title');
                 title.textContent = 'Kelompok SPJ ' + (index + 1);
             });
+            filterItems();
         }
+
+        function filterItems() {
+            const query = (searchInput.value || '').trim().toLocaleLowerCase('id-ID');
+            const visibleItemIds = new Set();
+            const allItemIds = new Set();
+            groups.querySelectorAll('.spj-item-card').forEach(card => {
+                const itemId = card.querySelector('.spj-item-volume')?.dataset.itemId;
+                if (itemId) allItemIds.add(itemId);
+                const matches = !query || (card.dataset.itemSearch || card.textContent).toLocaleLowerCase('id-ID').includes(query);
+                card.classList.toggle('d-none', !matches);
+                if (matches && itemId) visibleItemIds.add(itemId);
+            });
+            searchCount.textContent = query
+                ? `Menampilkan ${visibleItemIds.size} dari ${allItemIds.size} item.`
+                : `${allItemIds.size} item tersedia.`;
+        }
+
+        searchInput.addEventListener('input', filterItems);
 
         document.getElementById('add-spj-group').addEventListener('click', function () {
             const index = nextIndex++;
