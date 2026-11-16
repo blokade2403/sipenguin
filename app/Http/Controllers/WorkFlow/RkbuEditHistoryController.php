@@ -12,6 +12,7 @@ class RkbuEditHistoryController extends Controller
     {
         $history = RkbuEditHistory::query()
             ->with(['user', 'rkbu'])
+            ->whereHas('rkbu', fn ($query) => $query->where('tahun_anggaran_id', session('tahun_anggaran_id')))
             ->where('fase_urutan', '>', 1)
             ->latest()
             ->paginate(25)

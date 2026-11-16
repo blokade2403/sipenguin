@@ -8,20 +8,55 @@
         $chartMax = max(1, $plannedMonthly, max($incomeMonthly), max($expenseMonthly));
     @endphp
     <div class="container-fluid py-4 revenue-page">
-        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-6">
-            <div><div class="text-uppercase text-muted fs-8 fw-bold mb-2">Modul Pendapatan BLUD</div><h1 class="fs-2 fw-bold text-gray-900 mb-1">Laporan Keuangan</h1><div class="text-muted">Pendapatan global rumah sakit dibandingkan dengan realisasi belanja bersumber dana BLUD.</div></div>
-            <form method="GET" action="{{ route('pendapatan.index') }}"><select name="tahun_anggaran_id" class="form-select" aria-label="Tahun anggaran" onchange="this.form.submit()">@foreach ($years as $item)<option value="{{ $item->id }}" @selected($yearId === $item->id)>{{ $item->nama_tahun_anggaran }}</option>@endforeach</select></form>
-        </div>
+        <section class="revenue-hero mb-6">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-4">
+                <div class="d-flex align-items-center gap-4">
+                    <span class="revenue-hero-icon"><i class="fas fa-chart-line"></i></span>
+                    <div><span class="revenue-eyebrow">Modul Pendapatan BLUD</span><h1 class="fs-2x fw-bold text-gray-900 mb-1">Laporan Keuangan</h1><div class="text-gray-600">Pantau target, penerimaan, dan belanja BLUD dalam satu tampilan.</div></div>
+                </div>
+                <form method="GET" action="{{ route('pendapatan.index') }}" class="revenue-year-picker">
+                    <label for="revenue-year" class="text-muted fs-8 fw-bold text-uppercase mb-1">Tahun anggaran</label>
+                    <select id="revenue-year" name="tahun_anggaran_id" class="form-select form-select-solid" aria-label="Tahun anggaran" onchange="this.form.submit()">@foreach ($years as $item)<option value="{{ $item->id }}" @selected($yearId === $item->id)>{{ $item->nama_tahun_anggaran }}</option>@endforeach</select>
+                </form>
+            </div>
+            <nav class="revenue-jumps d-flex flex-wrap gap-2 mt-5" aria-label="Navigasi laporan pendapatan">
+                <a class="btn btn-sm btn-light-primary" href="#ringkasan-pendapatan"><i class="fas fa-chart-pie me-1"></i>Ringkasan</a>
+                <a class="btn btn-sm btn-light-primary" href="#input-pendapatan"><i class="fas fa-pen me-1"></i>Input data</a>
+                <a class="btn btn-sm btn-light-primary" href="#grafik-pendapatan"><i class="fas fa-chart-bar me-1"></i>Grafik</a>
+                <a class="btn btn-sm btn-light-primary" href="#detail-pendapatan"><i class="fas fa-table me-1"></i>Rincian rekening</a>
+            </nav>
+        </section>
         @if (session('success'))<div class="alert alert-success">{{ session('success') }}</div>@endif
         @if ($errors->any())<div class="alert alert-danger"><strong>Periksa isian:</strong><ul class="mb-0 mt-2">@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
 
-        <div class="row g-4 mb-6">
-            @foreach ([['Belanja BLUD', $summary['realisasi_belanja'], 'primary'], ['Target Pendapatan', $summary['target_pendapatan'], 'warning'], ['Realisasi Pendapatan', $summary['realisasi_pendapatan'], 'success'], ['Selisih Pendapatan − Belanja BLUD', $summary['selisih_kas'], $summary['selisih_kas'] >= 0 ? 'success' : 'danger']] as [$label, $amount, $color])
-                <div class="col-md-6 col-xl-3"><div class="card border-0 shadow-sm h-100"><div class="card-body p-5"><div class="text-muted fw-semibold mb-2">{{ $label }}</div><div class="fs-2 fw-bold text-{{ $color }}">Rp {{ number_format($amount, 0, ',', '.') }}</div><small class="text-muted">Tahun {{ $year?->nama_tahun_anggaran ?? '-' }}{{ $label === 'Selisih Pendapatan − Belanja BLUD' ? ' · belum termasuk saldo awal kas' : '' }}</small></div></div></div>
+        <div class="row g-4 mb-6" id="ringkasan-pendapatan">
+            @php
+                $summaryCards = [
+                    ['label' => 'Belanja BLUD', 'amount' => $summary['realisasi_belanja'], 'color' => 'primary', 'icon' => 'fa-wallet', 'note' => ''],
+                    ['label' => 'Target Pendapatan', 'amount' => $summary['target_pendapatan'], 'color' => 'warning', 'icon' => 'fa-bullseye', 'note' => ''],
+                    ['label' => 'Realisasi Pendapatan', 'amount' => $summary['realisasi_pendapatan'], 'color' => 'success', 'icon' => 'fa-coins', 'note' => ''],
+                    ['label' => 'Selisih Pendapatan dan Belanja BLUD', 'amount' => $summary['selisih_kas'], 'color' => $summary['selisih_kas'] >= 0 ? 'success' : 'danger', 'icon' => 'fa-scale-balanced', 'note' => 'Belum termasuk saldo awal kas'],
+                ];
+            @endphp
+            @foreach ($summaryCards as $card)
+                <div class="col-md-6 col-xl-3">
+                    <div class="card revenue-stat-card border-0 shadow-sm h-100">
+                        <div class="card-body p-5">
+                            <div class="d-flex justify-content-between align-items-start gap-3">
+                                <div>
+                                    <div class="text-muted fw-semibold mb-2">{{ $card['label'] }}</div>
+                                    <div class="fs-2 fw-bold text-{{ $card['color'] }}">Rp {{ number_format($card['amount'], 0, ',', '.') }}</div>
+                                </div>
+                                <span class="revenue-stat-icon bg-light-{{ $card['color'] }} text-{{ $card['color'] }}"><i class="fas {{ $card['icon'] }}"></i></span>
+                            </div>
+                            <small class="text-muted d-block mt-3">Tahun {{ $year ? $year->nama_tahun_anggaran : '-' }}@if ($card['note']) - {{ $card['note'] }}@endif</small>
+                        </div>
+                    </div>
+                </div>
             @endforeach
         </div>
 
-        <div class="row g-5 mb-6">
+        <div class="row g-5 mb-6" id="input-pendapatan">
             <div class="col-lg-5"><form method="POST" action="{{ route('pendapatan.rekening.save') }}" class="card border-0 shadow-sm h-100">@csrf<input type="hidden" name="tahun_anggaran_id" value="{{ $yearId }}"><div class="card-header border-0 pt-5"><div><h2 class="fs-4 fw-bold mb-1">Master Rekening Pendapatan</h2><div class="text-muted fs-7">Masukkan rekening Akun 4 atau SILPA.</div></div></div><div class="card-body pt-2"><div class="row g-3"><div class="col-sm-5"><label class="form-label fw-semibold">Kode</label><input name="kode_rekening" class="form-control" required maxlength="100" placeholder="4.1.01 atau SILPA"></div><div class="col-sm-7"><label class="form-label fw-semibold">Nama rekening</label><input name="nama_rekening" class="form-control" required maxlength="255"></div><div class="col-12 text-end"><button class="btn btn-outline-primary">Tambah rekening</button></div></div></div></form></div>
             <div class="col-lg-7"><form method="POST" enctype="multipart/form-data" action="{{ route('pendapatan.target.save') }}" class="card border-0 shadow-sm h-100">@csrf<input type="hidden" name="tahun_anggaran_id" value="{{ $yearId }}"><div class="card-header border-0 pt-5"><div><h2 class="fs-4 fw-bold mb-1">Target Tahunan Global</h2><div class="text-muted fs-7">Satu target untuk seluruh rumah sakit pada rekening terpilih.</div></div></div><div class="card-body pt-2"><div class="row g-3"><div class="col-md-7"><label class="form-label fw-semibold">Rekening</label><select name="rekening_pendapatan_id" class="form-select" required><option value="">Pilih rekening</option>@foreach ($accounts as $account)<option value="{{ $account->id }}">{{ $account->kode_rekening }} — {{ $account->nama_rekening }}</option>@endforeach</select></div><div class="col-md-5"><label class="form-label fw-semibold">Target (Rp)</label><input type="number" name="target_tahunan" class="form-control" min="0" step="0.01" required></div><div class="col-12"><label class="form-label fw-semibold">Bukti surat penyusunan target pendapatan</label><input type="file" name="lampiran_surat" class="form-control" accept=".pdf,.jpg,.jpeg,.png"><div class="form-text">PDF/JPG/PNG, maksimal 5 MB. Lampiran lama dipertahankan jika tidak mengunggah file baru.</div></div><div class="col-12 text-end"><button class="btn btn-primary" @disabled(! $yearId || $accounts->isEmpty())>Simpan target</button></div></div></div></form></div>
         </div>
@@ -34,12 +69,16 @@
                 <details class="border-bottom py-3"><summary class="text-primary fw-semibold">Edit {{ $account->kode_rekening }} — {{ $account->nama_rekening }}</summary><form method="POST" action="{{ route('pendapatan.rekening.update', $account->id) }}" class="row g-2 mt-2">@csrf @method('PUT')<input type="hidden" name="tahun_anggaran_id" value="{{ $yearId }}"><div class="col-md-3"><input name="kode_rekening" value="{{ $account->kode_rekening }}" class="form-control" required maxlength="100" aria-label="Kode rekening"></div><div class="col-md-6"><input name="nama_rekening" value="{{ $account->nama_rekening }}" class="form-control" required maxlength="255" aria-label="Nama rekening"></div><div class="col-md-3"><button class="btn btn-primary">Simpan rekening</button></div></form></details>
             @endforeach
         </div></section>
-        <section class="card border-0 shadow-sm mb-6"><div class="card-header border-0 pt-6"><div><h2 class="fs-4 fw-bold mb-1">Grafik Target dan Arus Kas BLUD</h2><div class="text-muted fs-7">Target pendapatan dibagi rata sebagai pembanding bulanan. Grafik kas menunjukkan realisasi pendapatan dan belanja BLUD.</div></div></div><div class="card-body pt-2"><div class="d-flex flex-wrap gap-4 mb-4 small"><span><i class="legend legend-target"></i>Target bulanan</span><span><i class="legend legend-income"></i>Pendapatan</span><span><i class="legend legend-expense"></i>Belanja BLUD</span></div><div class="finance-chart">@foreach ($months as $number => $month)<div class="chart-month"><div class="chart-bars"><div class="chart-bar target-bar" title="Target: Rp {{ number_format($plannedMonthly, 0, ',', '.') }}" style="height:{{ max(2, $plannedMonthly / $chartMax * 100) }}%"></div><div class="chart-bar income-bar" title="Pendapatan: Rp {{ number_format($incomeMonthly[$number], 0, ',', '.') }}" style="height:{{ max(2, $incomeMonthly[$number] / $chartMax * 100) }}%"></div><div class="chart-bar expense-bar" title="Belanja BLUD: Rp {{ number_format($expenseMonthly[$number], 0, ',', '.') }}" style="height:{{ max(2, $expenseMonthly[$number] / $chartMax * 100) }}%"></div></div><div class="chart-label">{{ mb_substr($month, 0, 3) }}</div></div>@endforeach</div></div></section>
+        <section class="card border-0 shadow-sm mb-6" id="grafik-pendapatan"><div class="card-header border-0 pt-6"><div><h2 class="fs-4 fw-bold mb-1">Grafik Target dan Arus Kas BLUD</h2><div class="text-muted fs-7">Target pendapatan dibagi rata sebagai pembanding bulanan. Grafik kas menunjukkan realisasi pendapatan dan belanja BLUD.</div></div></div><div class="card-body pt-2"><div class="d-flex flex-wrap gap-2 mb-4 small chart-controls"><button type="button" class="chart-toggle is-active" data-chart-series="target" aria-pressed="true"><i class="legend legend-target"></i>Target bulanan</button><button type="button" class="chart-toggle is-active" data-chart-series="income" aria-pressed="true"><i class="legend legend-income"></i>Pendapatan</button><button type="button" class="chart-toggle is-active" data-chart-series="expense" aria-pressed="true"><i class="legend legend-expense"></i>Belanja BLUD</button></div><div class="finance-chart">@foreach ($months as $number => $month)<div class="chart-month"><div class="chart-bars"><div class="chart-bar target-bar" data-series="target" title="Target: Rp {{ number_format($plannedMonthly, 0, ',', '.') }}" style="height:{{ max(2, $plannedMonthly / $chartMax * 100) }}%"></div><div class="chart-bar income-bar" data-series="income" title="Pendapatan: Rp {{ number_format($incomeMonthly[$number], 0, ',', '.') }}" style="height:{{ max(2, $incomeMonthly[$number] / $chartMax * 100) }}%"></div><div class="chart-bar expense-bar" data-series="expense" title="Belanja BLUD: Rp {{ number_format($expenseMonthly[$number], 0, ',', '.') }}" style="height:{{ max(2, $expenseMonthly[$number] / $chartMax * 100) }}%"></div></div><div class="chart-label">{{ mb_substr($month, 0, 3) }}</div></div>@endforeach</div></div></section>
 
-        <section class="card border-0 shadow-sm revenue-detail-card">
+        <section class="card border-0 shadow-sm revenue-detail-card" id="detail-pendapatan">
             <div class="card-header border-0 pt-6 pb-3 d-flex flex-wrap justify-content-between align-items-center gap-3">
                 <div><h2 class="fs-4 fw-bold mb-1">Target dan Realisasi Pendapatan per Rekening</h2><div class="text-muted fs-7">Periksa capaian tiap rekening. Gunakan tombol Edit pada target atau bulan untuk koreksi.</div></div>
                 <span class="badge bg-light-primary text-primary px-3 py-2">{{ $targets->count() }} rekening</span>
+            </div>
+            <div class="revenue-table-tools d-flex flex-wrap align-items-center justify-content-between gap-3 px-5 pb-4">
+                <div class="revenue-search"><i class="fas fa-search" aria-hidden="true"></i><input type="search" id="revenue-account-search" class="form-control form-control-sm" placeholder="Cari kode atau nama rekening..." aria-label="Cari rekening pendapatan"></div>
+                <div class="d-flex align-items-center gap-2"><label for="revenue-progress-filter" class="text-muted fs-7 fw-semibold mb-0">Capaian</label><select id="revenue-progress-filter" class="form-select form-select-sm w-auto"><option value="all">Semua rekening</option><option value="progress">Belum mencapai target</option><option value="achieved">Target tercapai</option></select><span id="revenue-row-count" class="badge badge-light-primary"></span></div>
             </div>
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0 revenue-modern-table">
@@ -47,7 +86,7 @@
                     <tbody>
                     @forelse ($targets as $target)
                         @php($progress = $target->target_tahunan > 0 ? min(100, $target->total_realisasi / $target->target_tahunan * 100) : 0)
-                        <tr>
+                        <tr data-revenue-row data-search="{{ strtolower($target->kode_rekening.' '.$target->nama_rekening) }}" data-progress-state="{{ $target->target_tahunan > 0 && $target->total_realisasi >= $target->target_tahunan ? 'achieved' : 'progress' }}">
                             <td class="account-cell"><div class="fw-bold text-gray-900">{{ $target->nama_rekening }}</div><div class="d-flex align-items-center gap-2 mt-1"><span class="text-muted fs-7">{{ $target->kode_rekening }}</span>@if ($target->is_silpa)<span class="badge bg-light-info">SILPA</span>@endif</div></td>
                             <td class="text-end target-cell"><div class="fw-semibold text-nowrap">Rp {{ number_format($target->target_tahunan, 0, ',', '.') }}</div>@if ($target->lampiran_surat_path)<a class="small d-block" href="{{ \Illuminate\Support\Facades\Storage::disk('public')->url($target->lampiran_surat_path) }}" target="_blank" rel="noopener">Lihat bukti surat</a>@endif<details class="cell-edit mt-1"><summary>Edit target</summary><form method="POST" enctype="multipart/form-data" action="{{ route('pendapatan.target.update', $target->id) }}" class="mini-edit-form">@csrf @method('PUT')<input type="hidden" name="tahun_anggaran_id" value="{{ $yearId }}"><label class="form-label small">Target baru</label><input type="number" name="target_tahunan" value="{{ $target->target_tahunan }}" class="form-control form-control-sm" min="0" step="0.01" required><label class="form-label small mt-2">Bukti surat (opsional)</label><input type="file" name="lampiran_surat" class="form-control form-control-sm" accept=".pdf,.jpg,.jpeg,.png"><button class="btn btn-sm btn-primary mt-2">Simpan target</button></form></details>@if ($target->histories->isNotEmpty())<details class="small mt-2"><summary>Histori perubahan ({{ $target->histories->count() }})</summary><div class="text-start mt-2">@foreach ($target->histories as $history)<div class="border-top py-2">{{ $history->created_at ? \Illuminate\Support\Carbon::parse($history->created_at)->format('d/m/Y H:i') : '' }}<br>{{ $history->target_sebelum === null ? 'Target awal' : 'Rp '.number_format($history->target_sebelum, 0, ',', '.') }} → Rp {{ number_format($history->target_sesudah, 0, ',', '.') }}@if ($history->lampiran_surat_path)<br><a href="{{ \Illuminate\Support\Facades\Storage::disk('public')->url($history->lampiran_surat_path) }}" target="_blank" rel="noopener">Bukti surat</a>@endif</div>@endforeach</div></details>@endif</td>
                             @foreach ($months as $number => $month)
@@ -72,5 +111,55 @@
     </div>
     <style>
         .revenue-page{max-width:1680px;margin:0 auto}.revenue-detail-card{border-radius:14px;overflow:visible}.revenue-modern-table{min-width:1780px}.revenue-modern-table thead th{position:sticky;top:0;background:#f8fafc;color:#64748b;font-size:.7rem;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap;padding:14px 10px}.revenue-modern-table tbody td{padding:14px 10px;border-color:#edf0f4}.revenue-modern-table thead th:first-child,.revenue-modern-table tbody td:first-child{padding-left:20px}.revenue-modern-table thead th:last-child,.revenue-modern-table tbody td:last-child{padding-right:20px}.account-col{min-width:210px}.target-col{min-width:145px}.month-col{min-width:118px}.total-col{min-width:150px}.progress-col{min-width:150px}.account-cell{min-width:210px;border-left:3px solid #3699ff}.month-cell{background:#fff}.month-value{font-size:.78rem;white-space:nowrap}.has-value{font-weight:600;color:#334155}.empty-value{color:#c0c6d0}.cell-edit{position:relative;font-size:.72rem}.cell-edit summary{display:inline-block;cursor:pointer;color:#3699ff;font-weight:600;list-style:none}.cell-edit summary::-webkit-details-marker{display:none}.mini-edit-form{position:static;width:220px;margin:6px auto 0;padding:10px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;box-shadow:0 6px 18px #0f172a12;text-align:left;white-space:normal}.target-cell .mini-edit-form{margin-left:auto}.progress{height:7px;background:#edf1f5;border-radius:10px}.progress-bar{border-radius:10px}.total-cell{background:#f8fafc}.revenue-modern-table tr:hover .month-cell{background:#fbfdff}.legend{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:5px}.legend-target,.target-bar{background:#f6c453}.legend-income,.income-bar{background:#16a36a}.legend-expense,.expense-bar{background:#3699ff}.finance-chart{height:270px;display:grid;grid-template-columns:repeat(12,minmax(35px,1fr));gap:10px;border-bottom:1px solid #e5e7eb;padding:12px 4px 0}.chart-month{display:flex;flex-direction:column;justify-content:flex-end;min-width:0}.chart-bars{height:225px;display:flex;align-items:flex-end;justify-content:center;gap:3px;border-bottom:1px solid #eef0f3}.chart-bar{width:24%;min-height:2px;border-radius:3px 3px 0 0;opacity:.88}.chart-label{text-align:center;color:#7e8798;font-size:.72rem;padding:7px 0}.table-responsive table{min-width:1450px}
+        .revenue-hero { position: relative; overflow: hidden; padding: clamp(1.25rem, 3vw, 2rem); border: 1px solid #e7eef8; border-radius: 1rem; background: linear-gradient(115deg, #eff6ff 0%, #fff 68%, #f5f9ff 100%); }
+        .revenue-hero::after { content: ''; position: absolute; width: 220px; height: 220px; top: -120px; right: -75px; border: 28px solid rgba(54,153,255,.06); border-radius: 50%; pointer-events: none; }
+        .revenue-hero > .d-flex, .revenue-jumps { position: relative; z-index: 1; }
+        .revenue-hero-icon { display: inline-flex; flex: 0 0 54px; width: 54px; height: 54px; align-items: center; justify-content: center; border-radius: 16px; color: #3699ff; background: #e6f2ff; font-size: 1.4rem; }
+        .revenue-eyebrow { display: block; margin-bottom: .45rem; color: #3699ff; font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+        .revenue-year-picker { min-width: 210px; padding: .8rem 1rem; border: 1px solid #e6edf7; border-radius: .8rem; background: rgba(255,255,255,.88); }
+        .revenue-year-picker select { min-width: 180px; }
+        .revenue-stat-card { border-radius: .9rem; transition: transform .18s ease, box-shadow .18s ease; }
+        .revenue-stat-card:hover { transform: translateY(-3px); box-shadow: 0 1rem 2rem rgba(30,50,80,.09) !important; }
+        .revenue-stat-card .card-body { border-top: 3px solid rgba(54,153,255,.18); border-radius: .9rem; }
+        .chart-toggle { padding: .45rem .7rem; border: 1px solid #e7ebf0; border-radius: 999px; color: #5e6573; background: #fff; transition: opacity .15s ease, background .15s ease; }
+        .chart-toggle.is-active { color: #344054; background: #f8fafc; }
+        .chart-toggle:not(.is-active) { opacity: .48; text-decoration: line-through; }
+        .chart-toggle .legend { vertical-align: -1px; }
+        .revenue-search { position: relative; min-width: min(100%, 280px); }
+        .revenue-search input { padding-left: 2.25rem; }
+        .revenue-search i { position: absolute; z-index: 1; left: .8rem; top: 50%; transform: translateY(-50%); color: #9aa3b2; }
+        .revenue-detail-card, #ringkasan-pendapatan, #input-pendapatan, #grafik-pendapatan { scroll-margin-top: 1.5rem; }
+        @media (max-width: 575.98px) { .revenue-hero > .d-flex { align-items: flex-start !important; flex-direction: column; } .revenue-year-picker, .revenue-year-picker select { width: 100%; } .revenue-table-tools > div:last-child { width: 100%; flex-wrap: wrap; } }
+        @media (prefers-reduced-motion: reduce) { .revenue-stat-card { transition: none; } }
     </style>
+    <script>
+        (() => {
+            const search = document.getElementById('revenue-account-search');
+            const filter = document.getElementById('revenue-progress-filter');
+            const rows = [...document.querySelectorAll('[data-revenue-row]')];
+            const count = document.getElementById('revenue-row-count');
+            const updateRows = () => {
+                const query = search.value.trim().toLocaleLowerCase('id');
+                let visible = 0;
+                rows.forEach(row => {
+                    const matches = row.dataset.search.includes(query)
+                        && (filter.value === 'all' || row.dataset.progressState === filter.value);
+                    row.classList.toggle('d-none', !matches);
+                    if (matches) visible++;
+                });
+                count.textContent = `${visible} rekening`;
+            };
+            if (search && filter) {
+                search.addEventListener('input', updateRows);
+                filter.addEventListener('change', updateRows);
+                updateRows();
+            }
+            document.querySelectorAll('[data-chart-series]').forEach(button => button.addEventListener('click', () => {
+                const series = button.dataset.chartSeries;
+                const active = button.classList.toggle('is-active');
+                document.querySelectorAll(`[data-series="${series}"]`).forEach(bar => { bar.hidden = !active; });
+                button.setAttribute('aria-pressed', String(active));
+            }));
+        })();
+    </script>
 @endsection

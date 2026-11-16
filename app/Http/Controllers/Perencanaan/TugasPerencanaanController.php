@@ -12,10 +12,13 @@ class TugasPerencanaanController extends Controller
 {
     public function index()
     {
-        $tasks = TugasPerencanaan::orderBy('dateline_tugas')->get();
+        $year = $this->sessionYear();
+        $tasks = TugasPerencanaan::query()
+            ->when($year, fn ($query) => $query->whereYear('tanggal_informasi', $year), fn ($query) => $query->whereRaw('1 = 0'))
+            ->orderBy('dateline_tugas')->get();
         $now = now();
         $urgentTasks = $tasks->filter(fn ($task) => !$task->tanggal_selesai && $task->dateline_tugas->lte($now->copy()->addDay()));
-        $month = request()->query('month', now()->format('Y-m'));
+        $month = request()->query('month', $year ? $year.'-01' : now()->format('Y-m'));
         try {
             $calendarMonth = \Carbon\Carbon::createFromFormat('Y-m', $month)->startOfMonth();
         } catch (\Throwable $e) {
@@ -69,6 +72,7 @@ class TugasPerencanaanController extends Controller
 
         $tasks = TugasPerencanaan::query()
             ->where('created_by', $user->id)
+            ->when($this->sessionYear(), fn ($query, $year) => $query->whereYear('tanggal_informasi', $year), fn ($query) => $query->whereRaw('1 = 0'))
             ->whereBetween('tanggal_informasi', [$period->copy()->startOfMonth()->toDateString(), $period->copy()->endOfMonth()->toDateString()])
             ->orderBy('tanggal_informasi')->orderBy('dateline_tugas')->get();
 
@@ -107,5 +111,14 @@ class TugasPerencanaanController extends Controller
             'link_tugas' => ['nullable', 'url', 'max:2048'],
             'keterangan' => ['nullable', 'string', 'max:5000'],
         ]);
+    }
+
+    private function sessionYear(): ?int
+    {
+        $year = session('tahun_anggaran');
+
+        return preg_match('/\b(19|20)\d{2}\b/', (string) $year, $matches)
+            ? (int) $matches[0]
+            : null;
     }
 }

@@ -12,11 +12,17 @@ class PositionSubKategoriRkbuController extends Controller
 {
     public function index()
     {
-        $data = PositionSubKategoriRkbu::with(['position', 'subKategoriRkbu'])->get();
+        $data = PositionSubKategoriRkbu::with(['position', 'subKategoriRkbu'])
+            ->get()
+            ->sortBy(fn ($mapping) => strtolower(
+                ($mapping->position?->nama_jabatan ?? '').' '.
+                ($mapping->subKategoriRkbu?->nama_sub_kategori_rkbu ?? '')
+            ))
+            ->values();
 
-        $positions = Position::all();
+        $positions = Position::orderBy('nama_jabatan')->get();
 
-        $subKategoriRkbus = SubKategoriRkbu::all();
+        $subKategoriRkbus = SubKategoriRkbu::orderBy('kode_sub_kategori_rkbu')->get();
 
         return view(
             'master_backend.workflow_setting.position_sub_kategori_rkbu.index',

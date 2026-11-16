@@ -30,9 +30,22 @@
             </a>
         </div>
 
-        <div class="row g-5 mb-8">
+        <div class="portal-tools d-flex flex-wrap align-items-center gap-3 mb-5">
+            <div class="portal-search flex-grow-1">
+                <i class="fas fa-search" aria-hidden="true"></i>
+                <input type="search" id="module-search" class="form-control" placeholder="Cari modul..." aria-label="Cari modul aplikasi">
+            </div>
+            <div class="portal-filters d-flex flex-wrap gap-2" role="group" aria-label="Filter modul">
+                <button type="button" class="btn btn-sm btn-primary" data-module-filter="all" aria-pressed="true">Semua</button>
+                <button type="button" class="btn btn-sm btn-light" data-module-filter="perencanaan" aria-pressed="false"><i class="fas fa-calendar-alt me-1"></i>Perencanaan</button>
+                <button type="button" class="btn btn-sm btn-light" data-module-filter="operasional" aria-pressed="false"><i class="fas fa-layer-group me-1"></i>Operasional</button>
+            </div>
+            <span id="module-count" class="text-muted fs-7 ms-auto" aria-live="polite"></span>
+        </div>
+
+        <div class="row g-5 mb-8" id="module-grid">
             @if (auth()->user()->hasRole('Perencana') || auth()->user()->hasRole('Super Admin'))
-                <div class="col-md-6 col-xxl-4">
+                <div class="col-md-6 col-xxl-4 module-item" data-category="perencanaan" data-search="tugas perencanaan deadline agenda kalender">
                     <a href="{{ route('perencanaan.tugas.index') }}" class="module-card card h-100 border-0 shadow-sm text-decoration-none">
                         <div class="card-body p-6">
                             <div class="module-icon bg-light-primary text-primary"><i class="fas fa-calendar-check"></i></div>
@@ -43,7 +56,7 @@
                     </a>
                 </div>
             @endif
-            <div class="col-md-6 col-xxl-4">
+            <div class="col-md-6 col-xxl-4 module-item" data-category="operasional" data-search="rkbu kebutuhan validasi anggaran">
                 <a href="{{ route('rkbu.index') }}" class="module-card card h-100 border-0 shadow-sm text-decoration-none">
                     <div class="card-body p-6">
                         <div class="module-icon bg-light-primary text-primary"><i class="fas fa-clipboard-list"></i></div>
@@ -57,7 +70,7 @@
                 </a>
             </div>
 
-            <div class="col-md-6 col-xxl-4">
+            <div class="col-md-6 col-xxl-4 module-item" data-category="operasional" data-search="usulan belanja pengadaan dokumen pembayaran">
                 <a href="{{ route('usulan-belanja.index') }}" class="module-card card h-100 border-0 shadow-sm text-decoration-none">
                     <div class="card-body p-6">
                         <div class="module-icon bg-light-warning text-warning"><i class="fas fa-file-invoice-dollar"></i></div>
@@ -71,7 +84,7 @@
                 </a>
             </div>
 
-            <div class="col-md-6 col-xxl-4">
+            <div class="col-md-6 col-xxl-4 module-item" data-category="operasional" data-search="persediaan barang stok opname">
                 <a href="{{ route('persediaan.inventory.index') }}" class="module-card card h-100 border-0 shadow-sm text-decoration-none">
                     <div class="card-body p-6">
                         <div class="module-icon bg-light-info text-info"><i class="fas fa-boxes"></i></div>
@@ -85,7 +98,7 @@
                 </a>
             </div>
 
-            <div class="col-md-6 col-xxl-4">
+            <div class="col-md-6 col-xxl-4 module-item" data-category="operasional" data-search="keuangan pendapatan rekening realisasi">
                 <a href="{{ route('pendapatan.index') }}" class="module-card card h-100 border-0 shadow-sm text-decoration-none">
                     <div class="card-body p-6">
                         <div class="module-icon bg-light-success text-success"><i class="fas fa-money-bill-wave"></i></div>
@@ -99,7 +112,7 @@
                 </a>
             </div>
 
-            <div class="col-md-6 col-xxl-4">
+            <div class="col-md-6 col-xxl-4 module-item" data-category="operasional" data-search="aset barang registrasi hibah modal">
                 @if (auth()->user()->hasRole('Pengurus Barang') || auth()->user()->hasRole('Administrator') || auth()->user()->hasRole('Super Admin'))
                     <a href="{{ route('asset-module.index') }}" class="module-card card h-100 border-0 shadow-sm text-decoration-none">
                         <div class="card-body p-6">
@@ -124,6 +137,10 @@
                     </div>
                 @endif
             </div>
+        </div>
+
+        <div id="module-empty" class="card border-0 shadow-sm text-center py-8 mb-8 d-none">
+            <div class="card-body"><i class="fas fa-search fs-2x text-muted mb-3"></i><div class="fw-bold text-gray-800">Modul tidak ditemukan</div><div class="text-muted">Coba kata kunci atau kategori lain.</div></div>
         </div>
 
         <section class="card border-0 shadow-sm mb-7">
@@ -178,14 +195,54 @@
     <style>
         .portal-hero { overflow: hidden; border-radius: 1rem; background: linear-gradient(115deg, #eef6ff 0%, #fff 72%); }
         .portal-context { min-width: 220px; padding: 1rem 1.25rem; border: 1px solid rgba(54, 153, 255, .14); border-radius: .85rem; background: rgba(255, 255, 255, .78); }
-        .module-card { border-radius: .9rem; transition: transform .18s ease, box-shadow .18s ease; }
-        a.module-card:hover { transform: translateY(-3px); box-shadow: 0 1rem 2rem rgba(30, 50, 80, .1) !important; }
+        .module-card { border-radius: .9rem; transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; border: 1px solid transparent !important; }
+        a.module-card:hover, a.module-card:focus-visible { transform: translateY(-3px); box-shadow: 0 1rem 2rem rgba(30, 50, 80, .1) !important; border-color: rgba(54, 153, 255, .28) !important; outline: none; }
         .module-icon { display: inline-flex; width: 52px; height: 52px; align-items: center; justify-content: center; border-radius: 14px; font-size: 1.35rem; }
         .module-card p { min-height: 48px; }
+        .portal-search { position: relative; min-width: min(100%, 260px); max-width: 380px; }
+        .portal-search .form-control { padding-left: 2.7rem; border-radius: .7rem; }
+        .portal-search > i { position: absolute; z-index: 1; left: 1rem; top: 50%; transform: translateY(-50%); color: #99a1b7; }
+        .portal-filters .btn { border-radius: .65rem; }
+        @media (prefers-reduced-motion: reduce) { .module-card { transition: none; } }
         .flow-panel { border: 1px solid rgba(0, 0, 0, .035); }
         .flow-steps { display: flex; flex-wrap: wrap; align-items: center; gap: .65rem; color: #344054; font-size: .875rem; font-weight: 600; }
         .flow-steps span, .flow-chip { padding: .55rem .75rem; border-radius: .55rem; background: rgba(255, 255, 255, .82); }
         .flow-steps i { color: #8b96a8; font-size: .7rem; }
         @media (max-width: 575.98px) { .portal-context { width: 100%; } .flow-steps { align-items: flex-start; } }
     </style>
+    <script>
+        (() => {
+            const search = document.getElementById('module-search');
+            const cards = [...document.querySelectorAll('.module-item')];
+            const filters = [...document.querySelectorAll('[data-module-filter]')];
+            const count = document.getElementById('module-count');
+            const empty = document.getElementById('module-empty');
+            if (!search || !cards.length) return;
+            let activeFilter = 'all';
+            const update = () => {
+                const query = search.value.trim().toLocaleLowerCase('id');
+                let visible = 0;
+                cards.forEach(card => {
+                    const matches = (activeFilter === 'all' || card.dataset.category === activeFilter)
+                        && `${card.dataset.search} ${card.textContent}`.toLocaleLowerCase('id').includes(query);
+                    card.classList.toggle('d-none', !matches);
+                    if (matches) visible++;
+                });
+                count.textContent = `${visible} dari ${cards.length} modul`;
+                empty.classList.toggle('d-none', visible > 0);
+            };
+            search.addEventListener('input', update);
+            filters.forEach(button => button.addEventListener('click', () => {
+                activeFilter = button.dataset.moduleFilter;
+                filters.forEach(item => {
+                    const selected = item === button;
+                    item.classList.toggle('btn-primary', selected);
+                    item.classList.toggle('btn-light', !selected);
+                    item.setAttribute('aria-pressed', String(selected));
+                });
+                update();
+            }));
+            update();
+        })();
+    </script>
 @endsection

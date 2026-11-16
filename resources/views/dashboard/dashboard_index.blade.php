@@ -8,27 +8,37 @@
             : 0;
     @endphp
 
-    <div class="d-flex flex-wrap align-items-center justify-content-between gap-4 mb-6">
-        <div>
-            <h1 class="fs-2 fw-bold text-gray-900 mb-1">Dashboard Anggaran</h1>
-            <div class="text-muted">Ringkasan RKBU, usulan belanja, dan realisasi pembayaran</div>
+    <section class="dashboard-hero d-flex flex-wrap align-items-center justify-content-between gap-4 mb-6">
+        <div class="dashboard-hero-copy">
+            <span class="dashboard-eyebrow"><i class="fas fa-chart-pie me-2"></i>Ringkasan keuangan</span>
+            <h1 class="fs-2x fw-bold text-gray-900 mb-2">Dashboard Anggaran</h1>
+            <div class="text-gray-600">Pantau RKBU, usulan belanja, dan realisasi pembayaran dalam satu tampilan.</div>
+            <nav class="dashboard-jumps d-flex flex-wrap gap-2 mt-5" aria-label="Navigasi dashboard">
+                <a href="#ringkasan" class="btn btn-sm btn-light-primary"><i class="fas fa-chart-bar me-1"></i>Ringkasan</a>
+                <a href="#perbandingan-blud" class="btn btn-sm btn-light-primary"><i class="fas fa-balance-scale me-1"></i>BLUD</a>
+                <a href="#perjalanan-anggaran" class="btn btn-sm btn-light-primary"><i class="fas fa-route me-1"></i>Alur anggaran</a>
+                <a href="#input-unit" class="btn btn-sm btn-light-primary"><i class="fas fa-sitemap me-1"></i>Input unit</a>
+            </nav>
         </div>
-        <form method="GET" action="{{ route('dashboard') }}" class="d-flex align-items-center gap-3">
+        <form method="GET" action="{{ route('dashboard') }}" class="dashboard-year d-flex align-items-center gap-3">
+            <span class="dashboard-year-icon"><i class="fas fa-calendar-alt"></i></span>
+            <div class="d-flex flex-column">
             <label for="tahun_anggaran_id" class="text-muted fw-semibold text-nowrap">Tahun anggaran</label>
-            <select id="tahun_anggaran_id" name="tahun_anggaran_id" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+            <select id="tahun_anggaran_id" name="tahun_anggaran_id" class="form-select form-select-sm" onchange="this.form.submit()">
                 @foreach ($tahunAnggarans as $tahun)
                     <option value="{{ $tahun->id }}" @selected($tahun->id === $tahunAnggaranId)>
                         {{ $tahun->nama_tahun_anggaran }}{{ $tahun->status === 'aktif' ? ' · Aktif' : '' }}
                     </option>
                 @endforeach
             </select>
+            </div>
         </form>
-    </div>
+    </section>
 
     @if (! $tahunAnggaran)
         <div class="alert alert-info">Data tahun anggaran belum tersedia.</div>
     @else
-        <div class="row g-5 mb-6">
+        <div class="row g-5 mb-6" id="ringkasan">
             <div class="col-sm-6 col-xxl-3">
                 <div class="card h-100 border-0 shadow-sm">
                     <div class="card-body p-6">
@@ -87,7 +97,7 @@
             </div>
         </div>
 
-        <div class="mb-3">
+        <div class="mb-3" id="perbandingan-blud">
             <h2 class="fs-4 fw-bold text-gray-900 mb-1">Perbandingan Pagu dan Belanja BLUD</h2>
             <div class="text-muted">Pagu rekening dibandingkan dengan total RKBU BLUD berstatus disetujui</div>
         </div>
@@ -139,7 +149,7 @@
             </div>
         </div>
 
-        <div class="row g-5 g-xl-8">
+        <div class="row g-5 g-xl-8" id="perjalanan-anggaran">
             <div class="col-xl-7">
                 <div class="card h-100">
                     <div class="card-header border-0 pt-6">
@@ -231,7 +241,7 @@
             </div>
         </div>
         <div class="row g-5 g-xl-8 mt-1">
-            <div class="col-xl-8">
+            <div class="col-xl-8" id="input-unit">
                 <div class="card h-100">
                     <div class="card-header border-0 pt-6">
                         <div class="card-title d-flex flex-column">
@@ -240,12 +250,16 @@
                         </div>
                     </div>
                     <div class="card-body pt-2">
+                        <div class="dashboard-table-search mb-4">
+                            <i class="fas fa-search" aria-hidden="true"></i>
+                            <input type="search" id="unit-search" class="form-control form-control-sm" placeholder="Cari nama unit..." aria-label="Cari nama unit">
+                        </div>
                         <div class="table-responsive">
                             <table class="table table-row-dashed table-row-gray-300 align-middle gs-0 gy-4">
                                 <thead><tr class="fw-bold text-muted"><th>No.</th><th>Nama Unit</th><th class="text-end">Total Usulan</th><th class="text-end">Perlu Validasi</th><th class="text-end">Validasi Terakhir</th><th class="text-end">Ditolak</th></tr></thead>
                                 <tbody>
                                     @forelse ($unitInputan as $index => $unit)
-                                        <tr><td>{{ $index + 1 }}</td><td class="fw-semibold text-gray-800">{{ $unit->nama_unit }}</td><td class="text-end">{{ $rupiah($unit->total_usulan) }}</td><td class="text-end">{{ $rupiah($unit->perlu_validasi) }}</td><td class="text-end text-success fw-semibold">{{ $rupiah($unit->tervalidasi_akhir) }}</td><td class="text-end text-danger">{{ $rupiah($unit->ditolak) }}</td></tr>
+                                        <tr data-unit-row><td>{{ $index + 1 }}</td><td class="fw-semibold text-gray-800">{{ $unit->nama_unit }}</td><td class="text-end">{{ $rupiah($unit->total_usulan) }}</td><td class="text-end">{{ $rupiah($unit->perlu_validasi) }}</td><td class="text-end text-success fw-semibold">{{ $rupiah($unit->tervalidasi_akhir) }}</td><td class="text-end text-danger">{{ $rupiah($unit->ditolak) }}</td></tr>
                                     @empty
                                         <tr><td colspan="6" class="text-center text-muted py-8">Belum ada inputan unit pada tahun anggaran ini.</td></tr>
                                     @endforelse
@@ -269,10 +283,37 @@
     @endif
 
     <style>
-        .dashboard-icon { width: 42px; height: 42px; display: inline-flex; align-items: center; justify-content: center; border-radius: 12px; font-size: 17px; }
+        .dashboard-hero { position: relative; overflow: hidden; padding: clamp(1.25rem, 3vw, 2.25rem); border: 1px solid #e8effa; border-radius: 1rem; background: linear-gradient(120deg, #edf5ff 0%, #fff 68%, #f4f8ff 100%); }
+        .dashboard-hero::after { content: ''; position: absolute; width: 220px; height: 220px; right: -70px; top: -110px; border: 30px solid rgba(54, 153, 255, .06); border-radius: 50%; pointer-events: none; }
+        .dashboard-hero-copy, .dashboard-year { position: relative; z-index: 1; }
+        .dashboard-eyebrow { display: inline-block; margin-bottom: .65rem; color: #3699ff; font-size: .75rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+        .dashboard-year { padding: .8rem 1rem; border: 1px solid #e6edf7; border-radius: .8rem; background: rgba(255, 255, 255, .85); }
+        .dashboard-year-icon { display: inline-flex; width: 40px; height: 40px; align-items: center; justify-content: center; color: #3699ff; border-radius: 12px; background: #eef6ff; }
+        .dashboard-jumps a { border-radius: .6rem; }
+        .dashboard-icon { width: 46px; height: 46px; display: inline-flex; align-items: center; justify-content: center; border-radius: 14px; font-size: 18px; transition: transform .18s ease; }
+        #ringkasan .card { border-radius: .9rem; transition: transform .18s ease, box-shadow .18s ease; }
+        #ringkasan .card:hover { transform: translateY(-3px); box-shadow: 0 1rem 2rem rgba(30, 50, 80, .08) !important; }
+        #ringkasan .card:hover .dashboard-icon { transform: scale(1.08); }
+        .dashboard-table-search { position: relative; max-width: 320px; }
+        .dashboard-table-search input { padding-left: 2.3rem; }
+        .dashboard-table-search i { position: absolute; z-index: 1; left: .8rem; top: 50%; transform: translateY(-50%); color: #99a1b7; }
+        .dashboard-hero, #ringkasan, #perbandingan-blud, #perjalanan-anggaran, #input-unit { scroll-margin-top: 1.5rem; }
+        @media (max-width: 575.98px) { .dashboard-year { width: 100%; } .dashboard-year > div { flex: 1; } .dashboard-year select { width: 100%; } }
+        @media (prefers-reduced-motion: reduce) { #ringkasan .card, .dashboard-icon { transition: none; } }
         .budget-flow-item { display: flex; gap: 14px; position: relative; padding-bottom: 25px; }
         .budget-flow-item::after { content: ''; position: absolute; left: 7px; top: 17px; bottom: 0; width: 2px; background: #e4e6ef; }
         .budget-flow-last::after { display: none; }
         .budget-flow-dot { position: relative; z-index: 1; margin-top: 4px; width: 16px; height: 16px; border: 4px solid #fff; border-radius: 50%; box-shadow: 0 0 0 1px #e4e6ef; flex: 0 0 16px; }
     </style>
+    <script>
+        (() => {
+            const input = document.getElementById('unit-search');
+            if (!input) return;
+            const rows = [...document.querySelectorAll('[data-unit-row]')];
+            input.addEventListener('input', () => {
+                const query = input.value.trim().toLocaleLowerCase('id');
+                rows.forEach(row => row.classList.toggle('d-none', !row.textContent.toLocaleLowerCase('id').includes(query)));
+            });
+        })();
+    </script>
 @endsection
