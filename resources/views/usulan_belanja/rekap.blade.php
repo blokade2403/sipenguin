@@ -16,6 +16,8 @@
 
     <div class="card-body">
         <form method="GET" action="{{ route('usulan-belanja.rekap') }}" class="row g-3 mb-6 ub-filter-panel">
+            <input type="hidden" name="search" value="{{ request('search') }}">
+            <input type="hidden" name="per_page" value="{{ request('per_page', 15) }}">
             <div class="col-md-3">
                 <label for="rekap-jenis" class="form-label">Jenis Kategori RKBU</label>
                 <select id="rekap-jenis" name="jenis_kategori_rkbu_id" class="form-select" data-control="select2">
@@ -58,6 +60,28 @@
                 <a href="{{ route('usulan-belanja.rekap') }}" class="btn btn-light">Reset</a>
             </div>
         </form>
+
+        <div class="ub-table-controls">
+            <form method="GET" action="{{ route('usulan-belanja.rekap') }}" class="ub-page-size-control">
+                @foreach(request()->except('per_page', 'page') as $key => $value)
+                    @if(is_scalar($value)) <input type="hidden" name="{{ $key }}" value="{{ $value }}"> @endif
+                @endforeach
+                <label for="rekap-per-page">Tampilkan</label>
+                <select id="rekap-per-page" name="per_page" class="form-select form-select-sm" onchange="this.form.submit()">
+                    @foreach([5, 10, 15, 25, 50, 100] as $option)
+                        <option value="{{ $option }}" @selected((int) request('per_page', 15) === $option)>{{ $option }}</option>
+                    @endforeach
+                </select>
+                <span>data per halaman</span>
+            </form>
+            <form method="GET" action="{{ route('usulan-belanja.rekap') }}" class="ub-search-control">
+                @foreach(request()->except('search', 'page') as $key => $value)
+                    @if(is_scalar($value)) <input type="hidden" name="{{ $key }}" value="{{ $value }}"> @endif
+                @endforeach
+                <label for="rekap-search">Cari:</label>
+                <input type="search" id="rekap-search" name="search" class="form-control form-control-sm" value="{{ request('search') }}" aria-label="Cari rekap usulan belanja">
+            </form>
+        </div>
 
         <div class="table-responsive">
             <table class="table table-row-dashed table-row-gray-300 align-middle gy-4 ub-data-table">
@@ -110,7 +134,12 @@
             </table>
         </div>
 
-        {{ $usulans->links() }}
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mt-4">
+            <span class="text-muted fs-7">
+                Menampilkan {{ $usulans->firstItem() ?? 0 }} sampai {{ $usulans->lastItem() ?? 0 }} dari {{ $usulans->total() }} data
+            </span>
+            {{ $usulans->onEachSide(1)->links() }}
+        </div>
     </div>
 </div>
 <style>
@@ -118,9 +147,14 @@
     .ub-page-header { background:linear-gradient(110deg,#f2f7ff,#fff 70%); border-bottom:1px solid #e8edf5; }
     .ub-heading-icon { display:grid; place-items:center; width:46px; height:46px; flex:0 0 46px; border-radius:12px; background:#fff; box-shadow:0 3px 12px #3699ff18; }
     .ub-filter-panel { padding:16px; margin-inline:0; border:1px solid #edf0f5; border-radius:10px; background:#f9fafc; }
+    .ub-table-controls { display:flex; justify-content:space-between; align-items:center; gap:16px; margin:0 0 14px; color:#181c32; }
+    .ub-page-size-control, .ub-search-control { display:flex; align-items:center; gap:8px; }
+    .ub-page-size-control select { width:76px; }
+    .ub-search-control input { width:210px; }
     .ub-data-table { min-width:1000px; }
     .ub-data-table thead th { color:#7e8299; background:#f5f8fa; font-size:11px; text-transform:uppercase; white-space:nowrap; }
     @media(max-width:767.98px) { .ub-page-header { padding:16px; } .ub-filter-panel { padding:12px; } }
+    @media(max-width:575.98px) { .ub-table-controls { align-items:stretch; flex-direction:column; } .ub-search-control { justify-content:space-between; } }
 </style>
 @endsection
 
@@ -131,6 +165,13 @@
         const subkategori = $('#rekap-subkategori');
         const selectedSubkategori = @json(request('sub_kategori_rkbu_id'));
         const exportButton = $('#rekap-export-excel');
+
+        let searchTimer;
+        $('#rekap-search').on('input', function () {
+            const form = this.form;
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(() => form.requestSubmit(), 350);
+        });
 
         function updateExportUrl() {
             const params = new URLSearchParams($('form[action="{{ route('usulan-belanja.rekap') }}"]').serialize());

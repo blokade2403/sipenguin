@@ -21,6 +21,10 @@
     #modalDetailApproval .rkbu-edit-detail h6 { padding-bottom: .75rem; border-bottom: 1px solid #edf1f6; color: #334a68; }
     #modalDetailApproval .form-label { color: #47566b; font-weight: 600; }
     #modalDetailApproval .form-control, #modalDetailApproval .form-select { min-height: 42px; border-color: #dce3ed; border-radius: .55rem; }
+    #modalDetailApproval textarea.form-control { min-height: 96px; resize: vertical; }
+    #modalDetailApproval .input-group-text { color: #64748b; background: #f5f8fc; border-color: #dce3ed; }
+    #modalDetailApproval .form-check-input { cursor: pointer; }
+    #modalDetailApproval .rkbu-edit-value.bg-light { color: #526176; font-weight: 600; }
     #modalDetailApproval .approval-note-card { background: #f9fbfe; }
     #modalDetailApproval .modal-footer { gap: .5rem; padding: 1rem 1.5rem; border-top: 1px solid #e8edf5; }
     #modalDetailApproval .modal-footer .btn { min-height: 40px; }
@@ -129,17 +133,6 @@
                             Data header dan nama barang/pegawai tidak dapat diubah karena item sudah masuk Usulan Belanja.
                         </div>
                         <div id="rkbu-edit-details" class="d-flex flex-column gap-3"></div>
-                        <div id="rkbu-shift-fields" class="row g-3 mt-2" style="display:none;">
-                            <div class="col-12">
-                                <label for="rkbu_shift_reason" class="form-label required">Keterangan pergeseran anggaran</label>
-                                <textarea id="rkbu_shift_reason" class="form-control" rows="3"></textarea>
-                            </div>
-                            <div class="col-12">
-                                <label for="rkbu_shift_file" class="form-label required">Lampiran bukti/alasan</label>
-                                <input id="rkbu_shift_file" type="file" class="form-control" accept=".pdf,.jpg,.jpeg,.png">
-                                <div class="form-text">PDF/JPG/PNG, maksimal 5 MB.</div>
-                            </div>
-                        </div>
                     </form>
                 </div>
 

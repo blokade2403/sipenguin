@@ -1,5 +1,6 @@
 ﻿ <!--begin::Toolbar-->
 @php
+    $toolbarTahunAnggaran = \App\Models\MasterBackend\SettingInput\TahunAnggaran::with('fase')->find(session('tahun_anggaran_id'));
     $toolbarSegments = request()->segments();
     $toolbarSectionTitle = trim(strip_tags($__env->yieldContent('title')));
     $toolbarCurrent = $title ?? ($toolbarSectionTitle !== ''
@@ -35,7 +36,7 @@
                                 <!--begin::Wrapper-->
                                 <!--end::Wrapper-->
                                 <!--begin::Button-->
-                                <a href="#" class="btn btn-sm btn-primary" >{{ session('tahun_anggaran') }}</a>
+                                <a href="#" class="btn btn-sm btn-primary">{{ session('tahun_anggaran') }} - {{ $toolbarTahunAnggaran?->fase?->nama_fase }}</a>
                                 <!--end::Button-->
                             </div>
                             <!--end::Actions-->

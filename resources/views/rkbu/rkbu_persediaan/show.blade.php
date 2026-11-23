@@ -4,8 +4,8 @@
             <div class="d-flex flex-wrap">
                 <div class="border border-gray-300 border-dashed rounded min-w-125px py-3 px-4 me-6 mb-3">
                     <div class="d-flex align-items-center">
-                        <div class="fs-6 fw-bolder">{{ $barjas->rkbu->subKategori->kode_sub_kategori_rkbu }}.
-                            {{ $barjas->rkbu->subKategori->nama_sub_kategori_rkbu ?? '-' }}</div>
+                        <div class="fs-6 fw-bolder">{{ $persediaan->rkbu->subKategori->kode_sub_kategori_rkbu }}.
+                            {{ $persediaan->rkbu->subKategori->nama_sub_kategori_rkbu ?? '-' }}</div>
                     </div>
                     <div class="fw-bold fs-8 text-gray-400">Kode Rekening</div>
                 </div>
@@ -60,15 +60,15 @@
                             <div class="d-flex align-items-center flex-grow-1">
                                 <div class="d-flex flex-column">
                                     <a href="#"
-                                        class="text-gray-900 text-hover-primary fs-6 fw-bolder">{{ $barjas->nama_barang }}</a>
-                                    <span class="text-gray-400 fw-bold">Created: {{ $barjas->created_at }}</span>
+                                        class="text-gray-900 text-hover-primary fs-6 fw-bolder">{{ $persediaan->nama_barang }}</a>
+                                    <span class="text-gray-400 fw-bold">Created: {{ $persediaan->created_at }}</span>
                                 </div>
                             </div>
                         </div>
                         <div class="mb-7">
                             <div class="text-gray-800 mb-5">
                                 <span class="fw-bolder">Spesifikasi Barang :</span>
-                                {{ $barjas->spesifikasi ?? '-' }}
+                                {{ $persediaan->spesifikasi ?? '-' }}
                             </div>
                             <div class="d-flex flex-stack position-relative mt-8 mb-8">
                                 <div class="position-absolute h-100 w-4px bg-warning rounded top-0 start-0">
@@ -76,15 +76,15 @@
                                 <div class="fw-bold ms-6 w-100 text-gray-600">
                                     <div class="text-gray-800 mb-1">
                                         Quantity :
-                                        <span class="fw-normal">{{ $barjas->volume_1 }} {{ $barjas->satuan_1 }} x
-                                            {{ $barjas->volume_2 }} {{ $barjas->satuan_2 }}</span>
+                                        <span class="fw-normal">{{ $persediaan->volume_1 }} {{ $persediaan->satuan_1 }} x
+                                            {{ $persediaan->volume_2 }} {{ $persediaan->satuan_2 }}</span>
                                     </div>
                                     <div class="row g-3 mb-1">
                                         <div class="col-md-6">
                                             <div class="text-gray-800">
                                                 Harga Satuan :
                                                 <span class="text-hover-primary">
-                                                    {{ number_format($barjas->harga_satuan) }}
+                                                    {{ number_format($persediaan->harga_satuan) }}
                                                 </span>
                                             </div>
                                         </div>
@@ -93,14 +93,14 @@
                                             <div class="text-gray-800">
                                                 PPN :
                                                 <span class="text-hover-primary">
-                                                    {{ $barjas->ppn }}%
+                                                    {{ $persediaan->ppn }}%
                                                 </span>
                                             </div>
                                         </div>
                                     </div>
                                     <div class="fw-bolder text-gray-800 text-hover-primary d-block">
                                         Total Anggaran :
-                                        <span class="text-primary">Rp. {{ $barjas->total_anggaran }}</span>
+                                        <span class="text-primary">Rp. {{ $persediaan->total_anggaran }}</span>
                                     </div>
                                 </div>
                             </div>
@@ -110,17 +110,17 @@
                                 <div class="fw-bold ms-6 w-100 text-gray-600">
                                     <div class="text-gray-800 mb-1">
                                         Penempatan Barang :
-                                        <span class="fw-normal">{{ $barjas->penempatan ?? '-' }}</span>
+                                        <span class="fw-normal">{{ $persediaan->penempatan ?? '-' }}</span>
                                     </div>
                                     <div class="text-gray-800 mb-1">
                                         Skala Prioritas :
                                         <span class="fw-normal fw-bold text-active-info">Prioritas
-                                            {{ $barjas->rating ?? '-' }}</span>
+                                            {{ $persediaan->rating ?? '-' }}</span>
                                     </div>
                                     <div class="text-gray-800">
                                         ID RKBU :
                                         <span class="text-hover-primary">
-                                            {{ $barjas->id }}
+                                            {{ $persediaan->id }}
                                         </span>
                                     </div>
                                 </div>
@@ -133,21 +133,21 @@
                                     <div class="text-gray-800">
                                         Pengusul :
                                         <span class="text-hover-primary">
-                                            {{ $barjas->rkbu->user->nama ?? '-' }}
+                                            {{ $persediaan->rkbu->user->nama ?? '-' }}
                                         </span>
                                     </div>
 
                                     <div class="text-gray-800">
                                         Unit :
                                         <span class="text-hover-primary">
-                                            {{ $barjas->rkbu->unit->nama_unit ?? '-' }}
+                                            {{ $persediaan->rkbu->unit->nama_unit ?? '-' }}
                                         </span>
                                     </div>
 
                                     <div class="text-gray-800">
                                         Status RKBU :
                                         <span class="badge badge-light-primary">
-                                            {{ strtoupper($barjas->rkbu->status ?? '-') }}
+                                            {{ strtoupper($persediaan->rkbu->status ?? '-') }}
                                         </span>
                                     </div>
                                 </div>
@@ -158,14 +158,14 @@
                                 <div class="d-flex align-items-center">
                                     <div
                                         class="fs-6 fw-bolder
-                                            @if ($barjas->rkbu->status == 'approved') text-success
-                                            @elseif($barjas->rkbu->status == 'revision')
+                                            @if ($persediaan->rkbu->status == 'approved') text-success
+                                            @elseif($persediaan->rkbu->status == 'revision')
                                                 text-warning
-                                            @elseif($barjas->rkbu->status == 'rejected')
+                                            @elseif($persediaan->rkbu->status == 'rejected')
                                                 text-danger
                                             @else
                                                 text-primary @endif">
-                                        {{ strtoupper($barjas->rkbu->status ?? '-') }}
+                                        {{ strtoupper($persediaan->rkbu->status ?? '-') }}
 
                                     </div>
                                 </div>
@@ -182,12 +182,12 @@
                                 <div class="fw-bold ms-6 w-100 text-gray-600">
                                     <div class="text-gray-800 mb-1">
                                         Sisa Volume Barang :
-                                        <span class="fw-normal">{{ $barjas->sisa_vol_rkbu }} {{ $barjas->satuan_1 }}
-                                            / {{ $barjas->satuan_2 }}</span>
+                                        <span class="fw-normal">{{ $persediaan->sisa_vol_rkbu }} {{ $persediaan->satuan_1 }}
+                                            / {{ $persediaan->satuan_2 }}</span>
                                     </div>
                                     <div class="fw-bolder text-gray-800 text-hover-primary d-block">
                                         Sisa Anggaran :
-                                        <span class="text-primary">Rp. {{ $barjas->sisa_anggaran_rkbu }}</span>
+                                        <span class="text-primary">Rp. {{ $persediaan->sisa_anggaran_rkbu }}</span>
                                     </div>
                                 </div>
                             </div>
@@ -206,8 +206,8 @@
                                             <div class="col-md-4">
                                                 <div class="text-gray-400">
                                                     KAP :
-                                                    @if ($barjas->upload_file_1)
-                                                        <a href="{{ asset('storage/' . $barjas->upload_file_1) }}"
+                                                    @if ($persediaan->upload_file_1)
+                                                        <a href="{{ asset('storage/' . $persediaan->upload_file_1) }}"
                                                             target="_blank" class="text-hover-primary">
                                                             Lihat KAP
                                                         </a>
@@ -220,8 +220,8 @@
                                             <div class="col-md-4">
                                                 <div class="text-gray-400">
                                                     KAK :
-                                                    @if ($barjas->upload_file_2)
-                                                        <a href="{{ asset('storage/' . $barjas->upload_file_2) }}"
+                                                    @if ($persediaan->upload_file_2)
+                                                        <a href="{{ asset('storage/' . $persediaan->upload_file_2) }}"
                                                             target="_blank" class="text-hover-primary">
                                                             Lihat KAK
                                                         </a>
@@ -234,8 +234,8 @@
                                             <div class="col-md-4">
                                                 <div class="text-gray-400">
                                                     SPH :
-                                                    @if ($barjas->upload_file_3)
-                                                        <a href="{{ asset('storage/' . $barjas->upload_file_3) }}"
+                                                    @if ($persediaan->upload_file_3)
+                                                        <a href="{{ asset('storage/' . $persediaan->upload_file_3) }}"
                                                             target="_blank" class="text-hover-primary">
                                                             Lihat SPH
                                                         </a>
@@ -245,11 +245,11 @@
                                                 </div>
                                             </div>
                                             @foreach ([4 => 'Dokumen Pendukung 4', 5 => 'Dokumen Pendukung 5'] as $number => $label)
-                                                @if ($barjas->{'upload_file_' . $number})
+                                                @if ($persediaan->{'upload_file_' . $number})
                                                     <div class="col-md-4">
                                                         <div class="text-gray-400">
                                                             {{ $label }}:
-                                                            <a href="{{ asset('storage/' . $barjas->{'upload_file_' . $number}) }}"
+                                                            <a href="{{ asset('storage/' . $persediaan->{'upload_file_' . $number}) }}"
                                                                 target="_blank" rel="noopener noreferrer" class="text-hover-primary">
                                                                 Buka file
                                                             </a>
@@ -265,8 +265,8 @@
                     </div>
                     <div class="separator mb-4"></div>
                     Link Ekatalog :
-                    {{ $barjas->link_ekatalog ?? '-' }}
-                    @include('rkbu.partials.workflow_history', ['workflowInstances' => $barjas->rkbu?->workflowInstances ?? collect()])
+                    {{ $persediaan->link_ekatalog ?? '-' }}
+                    @include('rkbu.partials.workflow_history', ['workflowInstances' => $persediaan->rkbu?->workflowInstances ?? collect()])
                 </div>
             </div>
         </div>

@@ -133,12 +133,10 @@
         <tbody>
             @forelse($items as $index => $item)
                 @php
-                    $volume1 = (float) ($item->volume_1 ?? 0);
+                    // Cetak memakai volume usulan yang dapat diedit, bukan koefisien awal RKBU.
+                    $volume1 = (float) $item->volume;
                     $volume2 = (float) ($item->volume_2 ?? 0);
                     $satuan1 = $item->satuan_1 ?? '-';
-                    if ($volume1 <= 0 && $item->detail_type === 'persediaan') {
-                        $volume1 = (float) $item->volume;
-                    }
                 @endphp
                 <tr>
                     <td class="center">{{ $index + 1 }}</td>

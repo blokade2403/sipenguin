@@ -90,10 +90,15 @@
                                 <td class="text-end text-nowrap">
                                     <a href="{{ route('rkbu.' . $config['route'] . '.show', $record->id) }}"
                                         class="btn btn-sm btn-light-info">Detail</a>
-                                    @if ($record->rkbu?->created_by === auth()->id() &&
-                                            in_array($record->rkbu?->status, ['draft', 'revision', 'rejected'], true))
+                                    @if (in_array($record->rkbu?->status, ['draft', 'revision', 'rejected'], true) &&
+                                            ($record->rkbu?->created_by === auth()->id() ||
+                                                auth()->user()->hasRole('Super Admin') ||
+                                                (auth()->user()->hasRole('Administrator') && auth()->user()->status_edit === 'aktif')))
                                         <a href="{{ route('rkbu.' . $config['route'] . '.edit', $record->id) }}"
                                             class="btn btn-sm btn-light-primary">Edit</a>
+                                    @endif
+                                    @if ($record->rkbu?->created_by === auth()->id() &&
+                                            in_array($record->rkbu?->status, ['draft', 'revision', 'rejected'], true))
                                         <form method="POST"
                                             action="{{ route('rkbu.' . $config['route'] . '.submit', $record->id) }}"
                                             class="d-inline">

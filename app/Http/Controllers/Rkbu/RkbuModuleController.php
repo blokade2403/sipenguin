@@ -478,7 +478,7 @@ class RkbuModuleController extends Controller
     {
         $query = $this->recordsForModule($module);
 
-        if (! auth()->user()->hasRole('Administrator')) {
+        if (! $this->canManageAllRecords()) {
             $query->whereHas('rkbu', fn(Builder $rkbuQuery) => $rkbuQuery->where('created_by', auth()->id()));
         }
 
@@ -501,11 +501,23 @@ class RkbuModuleController extends Controller
 
     private function editableRecord(string $module, string $id): Model
     {
-        $record = $this->ownedRecords($module)->with('rkbu')->findOrFail($id);
+        $query = $this->recordsForModule($module)->with('rkbu');
+        if (! $this->canManageAllRecords()) {
+            $query->whereHas('rkbu', fn(Builder $rkbuQuery) => $rkbuQuery->where('created_by', auth()->id()));
+        }
+        $record = $query->findOrFail($id);
 
         abort_unless(in_array($record->rkbu->status, ['draft', 'revision', 'rejected'], true), 403);
 
         return $record;
+    }
+
+    private function canManageAllRecords(): bool
+    {
+        $user = auth()->user();
+
+        return $user && ($user->hasRole('Super Admin')
+            || ($user->hasRole('Administrator') && $user->status_edit === 'aktif'));
     }
 
     private function subcategories(string $module): Builder

@@ -3,9 +3,15 @@
 @section('content')
     <div class="card">
         <div class="card-header">
-            <h3 class="card-title">Riwayat Perubahan RKBU</h3>
+            <h3 class="card-title">Riwayat Perubahan RKBU · {{ $title }}</h3>
         </div>
         <div class="card-body">
+            <div class="d-flex flex-wrap gap-2 mb-5">
+                <a href="{{ route('workflowapproval.rkbu-history') }}" class="btn btn-sm {{ $module === null ? 'btn-primary' : 'btn-light-primary' }}">Semua Modul</a>
+                @foreach ($modules as $key => $item)
+                    <a href="{{ route('workflowapproval.rkbu-history.module', $key) }}" class="btn btn-sm {{ $module === $key ? 'btn-primary' : 'btn-light-primary' }}">{{ $item['label'] }}</a>
+                @endforeach
+            </div>
             <div class="table-responsive">
                 <table id="rkbu-history-table" class="table table-row-bordered align-middle gy-4">
                     <thead>

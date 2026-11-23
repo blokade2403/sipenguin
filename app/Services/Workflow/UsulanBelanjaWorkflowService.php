@@ -5,6 +5,7 @@ namespace App\Services\Workflow;
 use App\Models\MasterBackend\SettingUser\PositionAssignment;
 use App\Models\MasterBackend\UserProfil\User;
 use App\Models\UsulanBelanja\UsulanBelanja;
+use App\Models\UsulanBelanja\UsulanBelanjaEditHistory;
 use App\Models\UsulanBelanja\UsulanBelanjaItem;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -25,7 +26,7 @@ class UsulanBelanjaWorkflowService
 
     public function getAvailableItems(UsulanBelanja $usulan): Collection
     {
-        return $this->getDetailItems($usulan->sub_kategori_rkbu_id, null, $usulan->id, $usulan->id, $usulan->sumber_dana_id);
+        return $this->getDetailItems($usulan->sub_kategori_rkbu_id, null, $usulan->id, $usulan->id, $usulan->sumber_dana_id, $usulan->tahun_anggaran_id);
     }
 
     public function getSelectedItems(UsulanBelanja $usulan): Collection
@@ -50,7 +51,7 @@ class UsulanBelanjaWorkflowService
             fn($item) => $item->detail_type . ':' . $item->detail_id
         );
 
-        $items = $this->getDetailItems($usulan->sub_kategori_rkbu_id, $selected, $usulan->id, null, $usulan->sumber_dana_id);
+        $items = $this->getDetailItems($usulan->sub_kategori_rkbu_id, $selected, $usulan->id, null, $usulan->sumber_dana_id, $usulan->tahun_anggaran_id);
         $previousAmounts = collect();
         foreach ($items->groupBy('detail_type') as $type => $typedItems) {
             $detailIds = $typedItems->pluck('detail_id')->all();
@@ -71,45 +72,45 @@ class UsulanBelanjaWorkflowService
                     ->select('items.detail_id')
                     ->selectRaw('SUM(ROUND(items.harga_satuan * items.volume, 2) + ROUND(ROUND(items.harga_satuan * items.volume, 2) * COALESCE(items.ppn, 0) / 100, 2)) as anggaran')
                     ->get()
-                    ->mapWithKeys(fn ($row) => [$type . ':' . $row->detail_id => (float) $row->anggaran])
+                    ->mapWithKeys(fn($row) => [$type . ':' . $row->detail_id => (float) $row->anggaran])
             );
         }
 
         return $items->map(function ($item) use ($savedValues, $previousAmounts) {
-                $saved = $savedValues->get($item->detail_type . ':' . $item->detail_id);
-                $item->link_id = $saved?->id;
-                $item->total_anggaran_rkbu = (float) $item->total_anggaran;
-                $item->harga_perencanaan = (float) $item->harga_satuan;
-                $item->harga_satuan = $saved?->harga_satuan ?? $item->harga_satuan;
-                $item->volume = $saved?->volume ?? $item->volume;
-                $item->ppn = $saved?->ppn ?? $item->ppn;
-                if ($saved && $saved->spesifikasi_usulan !== null) {
-                    $item->spesifikasi = $saved->spesifikasi_usulan;
-                }
-                $item->total_anggaran = round(
-                    (float) $item->harga_satuan * (float) $item->volume,
-                    2
-                );
-                $item->total_ppn = round(
-                    $item->total_anggaran * (float) $item->ppn / 100,
-                    2
-                );
-                $item->anggaran_tersedia = (float) $item->total_anggaran_rkbu;
-                $item->volume_tersedia = (float) $item->sisa_vol_rkbu;
-                $item->sisa_anggaran_rkbu = round(
-                    $item->anggaran_tersedia
-                        - (float) $previousAmounts->get($item->detail_type . ':' . $item->detail_id, 0)
-                        - $item->total_anggaran
-                        - $item->total_ppn,
-                    2
-                );
-                $item->sisa_vol_rkbu = round(
-                    $item->volume_tersedia - (float) $item->volume,
-                    3
-                );
+            $saved = $savedValues->get($item->detail_type . ':' . $item->detail_id);
+            $item->link_id = $saved?->id;
+            $item->total_anggaran_rkbu = (float) $item->total_anggaran;
+            $item->harga_perencanaan = (float) $item->harga_satuan;
+            $item->harga_satuan = $saved?->harga_satuan ?? $item->harga_satuan;
+            $item->volume = $saved?->volume ?? $item->volume;
+            $item->ppn = $saved?->ppn ?? $item->ppn;
+            if ($saved && $saved->spesifikasi_usulan !== null) {
+                $item->spesifikasi = $saved->spesifikasi_usulan;
+            }
+            $item->total_anggaran = round(
+                (float) $item->harga_satuan * (float) $item->volume,
+                2
+            );
+            $item->total_ppn = round(
+                $item->total_anggaran * (float) $item->ppn / 100,
+                2
+            );
+            $item->anggaran_tersedia = (float) $item->total_anggaran_rkbu;
+            $item->volume_tersedia = (float) $item->sisa_vol_rkbu;
+            $item->sisa_anggaran_rkbu = round(
+                $item->anggaran_tersedia
+                    - (float) $previousAmounts->get($item->detail_type . ':' . $item->detail_id, 0)
+                    - $item->total_anggaran
+                    - $item->total_ppn,
+                2
+            );
+            $item->sisa_vol_rkbu = round(
+                $item->volume_tersedia - (float) $item->volume,
+                3
+            );
 
-                return $item;
-            });
+            return $item;
+        });
     }
 
     private function getDetailItems(
@@ -117,9 +118,9 @@ class UsulanBelanjaWorkflowService
         ?array $selected = null,
         ?string $excludeUsulanId = null,
         ?string $includeUsulanId = null,
-        ?string $sumberDanaId = null
-    ): Collection
-    {
+        ?string $sumberDanaId = null,
+        ?string $tahunAnggaranId = null
+    ): Collection {
         $detailTables = [
             'barjas'            => 'rkbu_detail_barjass',
             'persediaan'        => 'rkbu_detail_persediaans',
@@ -140,9 +141,9 @@ class UsulanBelanjaWorkflowService
             $query = DB::table($table . ' as item')
                 ->join('rkbus', 'rkbus.id', '=', 'item.rkbu_id')
                 ->where('rkbus.status', 'approved')
-                ->where('rkbus.tahun_anggaran_id', session('tahun_anggaran_id'))
+                ->where('rkbus.tahun_anggaran_id', $tahunAnggaranId ?? session('tahun_anggaran_id'))
                 ->where('rkbus.sub_kategori_rkbu_id', $subKategoriId)
-                ->when($sumberDanaId, fn ($query) => $query->where('rkbus.sumber_dana_id', $sumberDanaId));
+                ->when($sumberDanaId, fn($query) => $query->where('rkbus.sumber_dana_id', $sumberDanaId));
 
             if ($selected !== null) {
                 $detailIds = collect($selected)
@@ -325,18 +326,19 @@ class UsulanBelanjaWorkflowService
     public function addItems(
         UsulanBelanja $usulan,
         array $selections,
-        User $user
+        User $user,
+        bool $allowSuperAdmin = false
     ): int {
-        return DB::transaction(function () use ($usulan, $selections, $user) {
+        return DB::transaction(function () use ($usulan, $selections, $user, $allowSuperAdmin) {
             $usulan = UsulanBelanja::query()
                 ->whereKey($usulan->id)
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            abort_unless($usulan->user_id === $user->id, 403);
-            abort_unless((string) $usulan->tahun_anggaran_id === (string) session('tahun_anggaran_id'), 403);
+            abort_unless(($allowSuperAdmin && $user->hasRole('Super Admin')) || $usulan->user_id === $user->id, 403);
+            abort_unless($allowSuperAdmin || (string) $usulan->tahun_anggaran_id === (string) session('tahun_anggaran_id'), 403);
 
-            if ($usulan->status_usulan !== 'draft' || $usulan->workflow_instance_id) {
+            if (! $allowSuperAdmin && ($usulan->status_usulan !== 'draft' || $usulan->workflow_instance_id)) {
                 throw ValidationException::withMessages([
                     'rkbu_id' => 'Item hanya dapat ditambahkan selama Usulan Belanja berstatus draft.',
                 ]);
@@ -375,9 +377,9 @@ class UsulanBelanjaWorkflowService
                     ->join('rkbus', 'rkbus.id', '=', 'item.rkbu_id')
                     ->where('item.id', $detailId)
                     ->where('rkbus.status', 'approved')
-                    ->where('rkbus.tahun_anggaran_id', session('tahun_anggaran_id'))
+                    ->where('rkbus.tahun_anggaran_id', $usulan->tahun_anggaran_id)
                     ->where('rkbus.sub_kategori_rkbu_id', $usulan->sub_kategori_rkbu_id)
-                    ->when($usulan->sumber_dana_id, fn ($query) => $query->where('rkbus.sumber_dana_id', $usulan->sumber_dana_id))
+                    ->when($usulan->sumber_dana_id, fn($query) => $query->where('rkbus.sumber_dana_id', $usulan->sumber_dana_id))
                     ->lockForUpdate()
                     ->first(array_merge([
                         'item.id',
@@ -412,7 +414,7 @@ class UsulanBelanjaWorkflowService
                     ]);
                 }
 
-                UsulanBelanjaItem::create([
+                $createdItem = UsulanBelanjaItem::create([
                     'usulan_belanja_id' => $usulan->id,
                     'rkbu_id' => $detail->rkbu_id,
                     'detail_type' => $type,
@@ -422,6 +424,7 @@ class UsulanBelanjaWorkflowService
                     'volume' => $initialVolume,
                     'ppn' => $detail->ppn,
                 ]);
+                $this->recordItemHistory($usulan, $user, 'ditambahkan', null, $createdItem->only(['rkbu_id', 'detail_type', 'detail_id', 'spesifikasi', 'harga_satuan', 'volume', 'ppn']));
                 $added++;
             }
 
@@ -432,19 +435,20 @@ class UsulanBelanjaWorkflowService
     public function updateItems(
         UsulanBelanja $usulan,
         array $items,
-        User $user
+        User $user,
+        bool $allowSuperAdmin = false
     ): void {
-        DB::transaction(function () use ($usulan, $items, $user) {
+        DB::transaction(function () use ($usulan, $items, $user, $allowSuperAdmin) {
             $usulan = UsulanBelanja::query()
                 ->whereKey($usulan->id)
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            abort_unless($usulan->user_id === $user->id, 403);
+            abort_unless(($allowSuperAdmin && $user->hasRole('Super Admin')) || $usulan->user_id === $user->id, 403);
 
             $canEditDraft = $usulan->status_usulan === 'draft' && ! $usulan->workflow_instance_id;
             $canEditRevision = $usulan->status_usulan === 'revision' && (bool) $usulan->workflow_instance_id;
-            if (! $canEditDraft && ! $canEditRevision) {
+            if (! $allowSuperAdmin && (! $canEditDraft && ! $canEditRevision)) {
                 throw ValidationException::withMessages([
                     'items' => 'Item hanya dapat diubah selama Usulan Belanja berstatus draft atau revisi.',
                 ]);
@@ -518,12 +522,18 @@ class UsulanBelanjaWorkflowService
                     ]);
                 }
 
+                $before = $item->only(['rkbu_id', 'detail_type', 'detail_id', 'spesifikasi', 'harga_satuan', 'volume', 'ppn']);
                 $item->update([
                     'harga_satuan' => $values['harga_satuan'],
                     'volume' => $values['volume'],
                     'ppn' => $values['ppn'],
                     'spesifikasi' => $values['spesifikasi'] ?? '',
                 ]);
+                $item->refresh();
+                $after = $item->only(['rkbu_id', 'detail_type', 'detail_id', 'spesifikasi', 'harga_satuan', 'volume', 'ppn']);
+                if ($before !== $after) {
+                    $this->recordItemHistory($usulan, $user, 'diubah', $before, $after);
+                }
             }
         }, 3);
     }
@@ -577,12 +587,25 @@ class UsulanBelanjaWorkflowService
                 ]);
             }
 
-            $item->newQuery()
+            $item = $item->newQuery()
                 ->whereKey($item->id)
                 ->where('usulan_belanja_id', $usulan->id)
-                ->firstOrFail()
-                ->delete();
+                ->firstOrFail();
+            $before = $item->only(['rkbu_id', 'detail_type', 'detail_id', 'spesifikasi', 'harga_satuan', 'volume', 'ppn']);
+            $this->recordItemHistory($usulan, $user, 'dihapus', $before, null);
+            $item->delete();
         }, 3);
+    }
+
+    private function recordItemHistory(UsulanBelanja $usulan, User $user, string $action, ?array $before, ?array $after): void
+    {
+        UsulanBelanjaEditHistory::query()->create([
+            'usulan_belanja_id' => $usulan->id,
+            'user_id' => $user->id,
+            'aksi' => $action,
+            'sebelum' => $before,
+            'sesudah' => $after,
+        ]);
     }
 
     private function assertFirstUsulanValidator(User $user): PositionAssignment

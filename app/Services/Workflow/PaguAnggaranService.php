@@ -125,10 +125,10 @@ class PaguAnggaranService
             ->sum('total_anggaran'));
     }
 
-    public function totalRkbuForAccount(string $tahunId, string $accountId, ?string $excludeRkbuId = null): float
+    public function totalRkbuForAccount(string $tahunId, string $accountId, ?string $excludeRkbuId = null, ?string $fundingSource = null): float
     {
         $total = 0.0;
-        $pagu = $this->paguForAccount($tahunId, $accountId);
+        $pagu = $this->paguForAccount($tahunId, $accountId, $fundingSource);
         if (! $pagu) {
             return $total;
         }
@@ -141,7 +141,7 @@ class PaguAnggaranService
 
         foreach ($rkbUs->cursor() as $rkbu) {
             if ($this->accountIsWithinPagu($this->resolveAccountId($rkbu), $pagu, $accountCodes)
-                && $this->rkbuMatchesFundingSource($rkbu, $pagu->jenis_sumber_dana)) {
+                && $this->rkbuMatchesFundingSource($rkbu, $fundingSource ?? $pagu->jenis_sumber_dana)) {
                 $total += $this->detailTotal($rkbu);
             }
         }
@@ -149,10 +149,10 @@ class PaguAnggaranService
         return $total;
     }
 
-    public function approvedRkbuForAccount(string $tahunId, string $accountId): float
+    public function approvedRkbuForAccount(string $tahunId, string $accountId, ?string $fundingSource = null): float
     {
         $total = 0.0;
-        $pagu = $this->paguForAccount($tahunId, $accountId);
+        $pagu = $this->paguForAccount($tahunId, $accountId, $fundingSource);
         if (! $pagu) {
             return $total;
         }
@@ -165,7 +165,7 @@ class PaguAnggaranService
 
         foreach ($rkbUs->cursor() as $rkbu) {
             if ($this->accountIsWithinPagu($this->resolveAccountId($rkbu), $pagu, $accountCodes)
-                && $this->rkbuMatchesFundingSource($rkbu, $pagu->jenis_sumber_dana)) {
+                && $this->rkbuMatchesFundingSource($rkbu, $fundingSource ?? $pagu->jenis_sumber_dana)) {
                 $total += $this->detailTotal($rkbu);
             }
         }
@@ -315,7 +315,7 @@ class PaguAnggaranService
             && str_contains(mb_strtolower((string) $pagu->rekeningBelanja?->nama_rekening_belanja), 'barang dan jasa');
     }
 
-    private function rkbuMatchesFundingSource(Rkbu $rkbu, string $paguFundingSource): bool
+    public function rkbuMatchesFundingSource(Rkbu $rkbu, string $paguFundingSource): bool
     {
         $source = mb_strtolower((string) (
             $rkbu->sumberDana?->nama_sumber_dana
@@ -340,9 +340,9 @@ class PaguAnggaranService
         return $source === $paguSource;
     }
 
-    public function totalUsulanForAccount(string $tahunId, string $accountId, ?string $excludeUsulanId = null): float
+    public function totalUsulanForAccount(string $tahunId, string $accountId, ?string $excludeUsulanId = null, ?string $fundingSource = null): float
     {
-        $pagu = $this->paguForAccount($tahunId, $accountId);
+        $pagu = $this->paguForAccount($tahunId, $accountId, $fundingSource);
         if (! $pagu) {
             return 0.0;
         }
@@ -362,7 +362,7 @@ class PaguAnggaranService
         foreach ($items as $item) {
             $rkbu = $rkbUs->get($item->related_rkbu_id);
             if ($rkbu && $this->accountIsWithinPagu($this->resolveAccountId($rkbu), $pagu, $accountCodes)
-                && $this->rkbuMatchesFundingSource($rkbu, $pagu->jenis_sumber_dana)) {
+                && $this->rkbuMatchesFundingSource($rkbu, $fundingSource ?? $pagu->jenis_sumber_dana)) {
                 $subtotal = (float) $item->harga_satuan * (float) $item->volume;
                 $total += $subtotal + ($subtotal * (float) $item->ppn / 100);
             }
@@ -372,7 +372,7 @@ class PaguAnggaranService
     }
 
     /** Resolve a pagu set on this account or on its nearest parent account. */
-    private function paguForAccount(string $tahunId, string $accountId): ?PaguAnggaran
+    private function paguForAccount(string $tahunId, string $accountId, ?string $fundingSource = null): ?PaguAnggaran
     {
         $accountCode = trim((string) RekeningBelanja::query()
             ->where('id_kode_rekening_belanja', $accountId)
@@ -385,6 +385,7 @@ class PaguAnggaranService
         return PaguAnggaran::query()
             ->with('rekeningBelanja')
             ->where('tahun_anggaran_id', $tahunId)
+            ->when($fundingSource, fn ($query) => $query->where('jenis_sumber_dana', $fundingSource))
             ->lockForUpdate()
             ->get()
             ->filter(function (PaguAnggaran $pagu) use ($accountId, $accountCode) {
@@ -399,8 +400,50 @@ class PaguAnggaranService
 
     public function assertRkbuWithinPagu(Rkbu $rkbu, ?float $newTotal = null): void
     {
-        if ($this->phaseOrder($rkbu->tahun_anggaran_id) < 2) {
-            return;
+        $rkbu->loadMissing(['subKategoriRkbu', 'sumberDana', 'subKegiatan.sumber_danas', 'rekeningBelanja.aktivitas.sub_kegiatan.sumber_danas']);
+        $total = $newTotal ?? $this->detailTotal($rkbu);
+        $subcategoryId = $rkbu->sub_kategori_rkbu_id;
+        if ($this->rkbuMatchesFundingSource($rkbu, 'BLUD')) {
+            $source = 'BLUD';
+        } elseif ($this->rkbuMatchesFundingSource($rkbu, 'Non BLUD')) {
+            $source = 'Non BLUD';
+        } else {
+            // Some legacy RKBU rows have no resolvable funding source. When only
+            // one source has a subcategory allocation, use that configured source
+            // so the validation compares the RKBU against the visible balance.
+            $configuredSources = $subcategoryId ? DB::table('pagu_subkategori_rkbus')
+                ->where('tahun_anggaran_id', $rkbu->tahun_anggaran_id)
+                ->where('sub_kategori_rkbu_id', $subcategoryId)
+                ->pluck('jenis_sumber_dana')->unique()->values() : collect();
+            if ($configuredSources->count() > 1) {
+                throw ValidationException::withMessages(['pagu' => 'Sumber dana RKBU belum dapat ditentukan. Lengkapi sumber dana RKBU agar pagu subkategori yang sesuai dapat diperiksa.']);
+            }
+            $source = $configuredSources->first() ?? 'Non BLUD';
+        }
+
+        // Subcategory allocations constrain planning only. During later phases,
+        // RKBU may shift between subcategories as long as the parent account
+        // allocation below still covers the account total.
+        if ($this->phaseOrder($rkbu->tahun_anggaran_id) === 1) {
+            $subcategoryPagu = $subcategoryId ? DB::table('pagu_subkategori_rkbus')
+                ->where('tahun_anggaran_id', $rkbu->tahun_anggaran_id)
+                ->where('sub_kategori_rkbu_id', $subcategoryId)
+                ->where('jenis_sumber_dana', $source)
+                ->value('jumlah_pagu') : null;
+            $subcategoryTotal = Rkbu::query()->where('tahun_anggaran_id', $rkbu->tahun_anggaran_id)
+                ->where('sub_kategori_rkbu_id', $subcategoryId)->whereNotIn('status', ['rejected'])
+                ->where('id', '<>', $rkbu->id)->with(['sumberDana', 'subKegiatan.sumber_danas', 'rekeningBelanja.aktivitas.sub_kegiatan.sumber_danas'])
+                ->get()->filter(fn (Rkbu $item) => $this->rkbuMatchesFundingSource($item, $source))
+                ->sum(fn (Rkbu $item) => $this->detailTotal($item));
+            $requiredPagu = $subcategoryTotal + $total;
+            if ($subcategoryPagu === null) {
+                throw ValidationException::withMessages(['pagu' => 'Pagu subkategori RKBU untuk sumber dana ' . $source . ' belum ditetapkan. Sisa pagu Rp 0, sedangkan total RKBU yang akan divalidasi Rp ' . number_format($total, 0, ',', '.') . '. Kekurangan pagu Rp ' . number_format($total, 0, ',', '.') . '.']);
+            }
+            if ($requiredPagu > (float) $subcategoryPagu) {
+                $remainingPagu = max(0, (float) $subcategoryPagu - $subcategoryTotal);
+                $shortfall = max(0, $total - $remainingPagu);
+                throw ValidationException::withMessages(['pagu' => 'Persetujuan ditolak: sisa pagu subkategori Rp ' . number_format($remainingPagu, 0, ',', '.') . ', sedangkan total RKBU yang akan divalidasi Rp ' . number_format($total, 0, ',', '.') . '. Kekurangan pagu Rp ' . number_format($shortfall, 0, ',', '.') . '.']);
+            }
         }
 
         $accountId = $this->resolveAccountId($rkbu);
@@ -410,15 +453,15 @@ class PaguAnggaranService
             ]);
         }
 
-        $pagu = $this->paguForAccount($rkbu->tahun_anggaran_id, $accountId);
+        $pagu = $this->paguForAccount($rkbu->tahun_anggaran_id, $accountId, $source);
         if (! $pagu) {
             throw ValidationException::withMessages([
                 'pagu' => 'Pagu untuk Rekening Belanja ini belum ditetapkan pada tahun anggaran aktif.',
             ]);
         }
 
-        $total = $this->totalRkbuForAccount($rkbu->tahun_anggaran_id, $accountId, $rkbu->id)
-            + ($newTotal ?? $this->detailTotal($rkbu));
+        $total = $this->totalRkbuForAccount($rkbu->tahun_anggaran_id, $accountId, $rkbu->id, $source)
+            + $total;
 
         if ($total > (float) $pagu->jumlah_pagu) {
             throw ValidationException::withMessages([

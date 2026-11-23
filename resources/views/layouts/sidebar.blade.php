@@ -288,7 +288,7 @@
                                          <span class="menu-title">Tanggal Pengesahan</span>
                                      </a>
                                  </div>
-                                 @if (auth()->user()?->hasRole('Super Admin'))
+                                 @if (auth()->user()?->hasRole('Super Admin') || auth()->user()?->hasRole('Administrator'))
                                      <div class="menu-item">
                                          <a class="menu-link" href="{{ route('pagu_anggaran.index') }}">
                                              <span class="menu-bullet"><span class="bullet bullet-dot"></span></span>
@@ -296,10 +296,26 @@
                                          </a>
                                      </div>
                                      <div class="menu-item">
-                                         <a class="menu-link" href="{{ route('workflowapproval.rkbu-history') }}">
+                                         <a class="menu-link" href="{{ route('pagu_subkategori.index') }}">
                                              <span class="menu-bullet"><span class="bullet bullet-dot"></span></span>
-                                             <span class="menu-title">Riwayat Perubahan RKBU</span>
+                                             <span class="menu-title">Pagu Subkategori RKBU</span>
                                          </a>
+                                     </div>
+                                     <div class="menu-item menu-accordion {{ request()->routeIs('workflowapproval.rkbu-history*', 'usulan-belanja.history') ? 'show' : '' }}" data-kt-menu-trigger="click">
+                                         <span class="menu-link">
+                                             <span class="menu-bullet"><span class="bullet bullet-dot"></span></span>
+                                             <span class="menu-title">Riwayat Perubahan</span>
+                                             <span class="menu-arrow"></span>
+                                         </span>
+                                         <div class="menu-sub menu-sub-accordion">
+                                             <div class="menu-item"><a class="menu-link" href="{{ route('workflowapproval.rkbu-history') }}"><span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span class="menu-title">Semua RKBU</span></a></div>
+                                             <div class="menu-item"><a class="menu-link" href="{{ route('workflowapproval.rkbu-history.module', 'barjas') }}"><span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span class="menu-title">RKBU Barjas</span></a></div>
+                                             <div class="menu-item"><a class="menu-link" href="{{ route('workflowapproval.rkbu-history.module', 'persediaan') }}"><span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span class="menu-title">RKBU Persediaan</span></a></div>
+                                             <div class="menu-item"><a class="menu-link" href="{{ route('workflowapproval.rkbu-history.module', 'modal-kantor') }}"><span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span class="menu-title">RKBU Modal Kantor</span></a></div>
+                                             <div class="menu-item"><a class="menu-link" href="{{ route('workflowapproval.rkbu-history.module', 'modal-alkes') }}"><span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span class="menu-title">RKBU Modal Alkes</span></a></div>
+                                             <div class="menu-item"><a class="menu-link" href="{{ route('workflowapproval.rkbu-history.module', 'pegawai') }}"><span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span class="menu-title">RKBU Pegawai</span></a></div>
+                                             <div class="menu-item"><a class="menu-link" href="{{ route('usulan-belanja.history') }}"><span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span class="menu-title">Usulan Belanja</span></a></div>
+                                         </div>
                                      </div>
                                  @endif
                                  <div class="menu-item">

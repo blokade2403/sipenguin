@@ -10,6 +10,7 @@ use App\Models\WorkFlow\ApprovalLog;
 use App\Models\WorkFlow\WorkflowInstance;
 use App\Models\WorkFlow\WorkflowStep;
 use App\Services\Workflow\PositionAssignmentService;
+use App\Services\Workflow\PaguAnggaranService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -22,6 +23,14 @@ class ApprovalRkbuController extends Controller
         try {
             $assignment = $this->currentAssignment();
             $approval = $this->approvalForCurrentYear($approvalId, $assignment);
+            $rkbu = $approval->workflowInstance?->rkbu;
+            if ($rkbu) {
+                $paguService = app(PaguAnggaranService::class);
+                if ($paguService->phaseOrder($rkbu->tahun_anggaran_id) >= 2) {
+                    abort_unless($paguService->isAdministrator(), 403, 'Approval RKBU pada fase perubahan hanya dapat dilakukan Administrator.');
+                }
+                $paguService->assertRkbuWithinPagu($rkbu);
+            }
 
             $approval->update([
                 'status' => 'approved',

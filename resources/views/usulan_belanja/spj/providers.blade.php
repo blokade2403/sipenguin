@@ -29,7 +29,7 @@
                     <span class="fw-bold text-gray-800">Filter daftar</span>
                 </div>
                 <form method="GET" action="{{ route('usulan-belanja.spj.providers') }}" class="row g-3 align-items-end">
-                    <div class="col-12 col-md-3">
+                    <div class="col-12 col-md-2">
                         <label for="perusahaan_id" class="form-label fw-semibold">Perusahaan penyedia</label>
                         <select name="perusahaan_id" id="perusahaan_id" class="form-select form-select-solid">
                             <option value="">Semua perusahaan</option>
@@ -40,7 +40,7 @@
                             @endforeach
                         </select>
                     </div>
-                    <div class="col-12 col-md-3">
+                    <div class="col-12 col-md-2">
                         <label for="sub_kategori_rkbu_id" class="form-label fw-semibold">Sub Kategori RKBU</label>
                         <select name="sub_kategori_rkbu_id" id="sub_kategori_rkbu_id" class="form-select form-select-solid">
                             <option value="">Semua sub kategori</option>
@@ -51,7 +51,7 @@
                             @endforeach
                         </select>
                     </div>
-                    <div class="col-12 col-md-3">
+                    <div class="col-12 col-md-2">
                         <label for="status_spj" class="form-label fw-semibold">Status SPJ</label>
                         <select name="status_spj" id="status_spj" class="form-select form-select-solid">
                             <option value="">Semua status</option>
@@ -60,7 +60,17 @@
                             @endforeach
                         </select>
                     </div>
-                    <div class="col-12 col-md-3 d-flex gap-2">
+                    <div class="col-12 col-md-2">
+                        <label for="tanggal_faktur_dari" class="form-label fw-semibold">Faktur dari tanggal</label>
+                        <input type="date" name="tanggal_faktur_dari" id="tanggal_faktur_dari" class="form-control form-control-solid" value="{{ request('tanggal_faktur_dari') }}">
+                        @error('tanggal_faktur_dari') <div class="text-danger fs-7 mt-1">{{ $message }}</div> @enderror
+                    </div>
+                    <div class="col-12 col-md-2">
+                        <label for="tanggal_faktur_sampai" class="form-label fw-semibold">Sampai tanggal</label>
+                        <input type="date" name="tanggal_faktur_sampai" id="tanggal_faktur_sampai" class="form-control form-control-solid" value="{{ request('tanggal_faktur_sampai') }}">
+                        @error('tanggal_faktur_sampai') <div class="text-danger fs-7 mt-1">{{ $message }}</div> @enderror
+                    </div>
+                    <div class="col-12 col-md-2 d-flex gap-2">
                         <button class="btn btn-primary flex-grow-1" type="submit">
                             <i class="ki-duotone ki-filter fs-4 me-1"><span class="path1"></span><span class="path2"></span></i>Filter
                         </button>

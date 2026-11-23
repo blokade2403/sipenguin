@@ -85,6 +85,23 @@ class UsulanBelanjaController extends Controller
         if (in_array($request->input('status'), $allowedStatuses, true)) {
             $submitted->where('status_usulan', $request->input('status'));
         }
+        if ($request->filled('search')) {
+            $search = trim($request->input('search'));
+            $submitted->where(function ($query) use ($search) {
+                $query->where('no_usulan_belanja', 'like', "%{$search}%")
+                    ->orWhere('nama_pengusul', 'like', "%{$search}%")
+                    ->orWhere('status_usulan', 'like', "%{$search}%")
+                    ->orWhereHas('unit', fn($unit) => $unit->where('nama_unit', 'like', "%{$search}%"))
+                    ->orWhereHas('tahunAnggaran', fn($tahun) => $tahun->where('nama_tahun_anggaran', 'like', "%{$search}%"))
+                    ->orWhereHas('rkbu.subKategoriRkbu', fn($subkategori) => $subkategori->where('nama_sub_kategori_rkbu', 'like', "%{$search}%"))
+                    ->orWhereHas('rkbu.subKategoriRkbu.kategori.jenis_kategori_rkbu', fn($jenis) => $jenis->where('nama_jenis_kategori_rkbu', 'like', "%{$search}%"));
+            });
+        }
+
+        $perPage = (int) $request->input('per_page', 15);
+        if (! in_array($perPage, [5, 10, 15, 25, 50, 100], true)) {
+            $perPage = 15;
+        }
 
         $usulans = $submitted->with([
             'pengusul',
@@ -97,7 +114,7 @@ class UsulanBelanjaController extends Controller
                 ->whereColumn('usulan_belanja_items.usulan_belanja_id', 'usulan_belanjas.id')
                 ->whereNotNull('detail_type')
                 ->whereNotNull('detail_id'),
-        ])->latest()->paginate(20)->withQueryString();
+        ])->latest()->paginate($perPage)->withQueryString();
 
         return view('usulan_belanja.rekap', compact('usulans', 'jenisKategoriRkbus', 'subKategoriRkbus', 'pengusuls'));
     }
@@ -127,7 +144,7 @@ class UsulanBelanjaController extends Controller
     {
         $user = auth()->user();
         $isAdministrator = $user->roles()
-            ->where('nama_role', 'Administrator')
+            ->whereIn('nama_role', ['Administrator', 'Super Admin'])
             ->exists();
         $isValidator = $usulanBelanja->workflow_instance_id
             && DB::table('approvals')
@@ -176,26 +193,28 @@ class UsulanBelanjaController extends Controller
         $metadataRkbus = $rkbuRecords->isNotEmpty()
             ? $rkbuRecords
             : collect([$usulanBelanja->rkbu])->filter();
-        $metadataLabel = fn ($values) => $values->filter()->unique()->implode(' / ') ?: '-';
-        $programLabel = $metadataLabel($metadataRkbus->map(fn ($rkbu) => $rkbu->subKegiatan?->aktivitas?->program ?? $rkbu->subKegiatan?->kegiatan?->program)
-            ->map(fn ($program) => $program ? trim(($program->kode_program ?? '') . ' ' . ($program->nama_program ?? ''), ' ') : null));
-        $kegiatanLabel = $metadataLabel($metadataRkbus->map(fn ($rkbu) => $rkbu->subKegiatan?->kegiatan)
-            ->map(fn ($kegiatan) => $kegiatan ? trim(($kegiatan->kode_kegiatan ?? '') . ' ' . ($kegiatan->nama_kegiatan ?? ''), ' ') : null));
-        $subKegiatanLabel = $metadataLabel($metadataRkbus->map(fn ($rkbu) => $rkbu->subKegiatan)
-            ->map(fn ($subKegiatan) => $subKegiatan ? trim(($subKegiatan->kode_sub_kegiatan ?? '') . ' ' . ($subKegiatan->nama_sub_kegiatan ?? ''), ' ') : null));
-        $aktivitasLabel = $metadataLabel($metadataRkbus->map(fn ($rkbu) => $rkbu->subKegiatan?->aktivitas)
-            ->map(fn ($aktivitas) => $aktivitas ? trim(($aktivitas->kode_aktivitas ?? '') . ' ' . ($aktivitas->nama_aktivitas ?? ''), ' ') : null));
+        $metadataLabel = fn($values) => $values->filter()->unique()->implode(' / ') ?: '-';
+        $programLabel = $metadataLabel($metadataRkbus->map(fn($rkbu) => $rkbu->subKegiatan?->aktivitas?->program ?? $rkbu->subKegiatan?->kegiatan?->program)
+            ->map(fn($program) => $program ? trim(($program->kode_program ?? '') . ' ' . ($program->nama_program ?? ''), ' ') : null));
+        $kegiatanLabel = $metadataLabel($metadataRkbus->map(fn($rkbu) => $rkbu->subKegiatan?->kegiatan)
+            ->map(fn($kegiatan) => $kegiatan ? trim(($kegiatan->kode_kegiatan ?? '') . ' ' . ($kegiatan->nama_kegiatan ?? ''), ' ') : null));
+        $subKegiatanLabel = $metadataLabel($metadataRkbus->map(fn($rkbu) => $rkbu->subKegiatan)
+            ->map(fn($subKegiatan) => $subKegiatan ? trim(($subKegiatan->kode_sub_kegiatan ?? '') . ' ' . ($subKegiatan->nama_sub_kegiatan ?? ''), ' ') : null));
+        $aktivitasLabel = $metadataLabel($metadataRkbus->map(fn($rkbu) => $rkbu->subKegiatan?->aktivitas)
+            ->map(fn($aktivitas) => $aktivitas ? trim(($aktivitas->kode_aktivitas ?? '') . ' ' . ($aktivitas->nama_aktivitas ?? ''), ' ') : null));
         $subtotal = (float) $items->sum('total_anggaran');
         $totalPpn = (float) $items->sum('total_ppn');
         $totalAnggaran = $subtotal + $totalPpn;
         $anggaranRkbu = 0.0;
-        foreach ([
-            'rkbu_detail_barjass',
-            'rkbu_detail_persediaans',
-            'rkbu_detail_modals',
-            'rkbu_detail_modal_alkes',
-            'rkbu_detail_pegawais',
-        ] as $detailTable) {
+        foreach (
+            [
+                'rkbu_detail_barjass',
+                'rkbu_detail_persediaans',
+                'rkbu_detail_modals',
+                'rkbu_detail_modal_alkes',
+                'rkbu_detail_pegawais',
+            ] as $detailTable
+        ) {
             $anggaranRkbu += (float) DB::table($detailTable . ' as detail')
                 ->join('rkbus', 'rkbus.id', '=', 'detail.rkbu_id')
                 ->where('rkbus.status', 'approved')
@@ -285,7 +304,7 @@ class UsulanBelanjaController extends Controller
                 'nip' => $lastApproval->validatorUser?->nip,
                 'status' => $status,
                 'tanggal' => $approvalDate,
-                'catatan' => $userApprovals->pluck('catatan')->filter(fn ($note) => filled($note))->unique()->implode(' / '),
+                'catatan' => $userApprovals->pluck('catatan')->filter(fn($note) => filled($note))->unique()->implode(' / '),
             ];
         });
         $judulHeader = JudulHeader::query()->first();
@@ -400,11 +419,11 @@ class UsulanBelanjaController extends Controller
     public function create()
     {
         $rkbus = $this->workflow->getEligibleRkbus(auth()->user());
-        $sources = $rkbus->unique('sumber_dana_id')->map(fn ($rkbu) => [
+        $sources = $rkbus->unique('sumber_dana_id')->map(fn($rkbu) => [
             'id' => $rkbu->sumber_dana_id,
             'name' => $rkbu->nama_sumber_dana,
         ])->values();
-        $jenisKategoris = $rkbus->groupBy('id_jenis_kategori_rkbu')->map(fn ($options, $id) => [
+        $jenisKategoris = $rkbus->groupBy('id_jenis_kategori_rkbu')->map(fn($options, $id) => [
             'id' => $id,
             'name' => $options->first()->nama_jenis_kategori_rkbu,
             'source_ids' => $options->pluck('sumber_dana_id')->unique()->values(),
@@ -444,6 +463,7 @@ class UsulanBelanjaController extends Controller
         $isAdmin = $user->roles()
             ->where('nama_role', 'Administrator')
             ->exists();
+        $isSuperAdminForUsulan = $user->hasRole('Super Admin');
 
         $isValidator = DB::table('approvals')
             ->where(
@@ -454,7 +474,7 @@ class UsulanBelanjaController extends Controller
             ->exists();
 
         abort_unless(
-            $fromRekap || $isAdmin ||
+            $fromRekap || $isAdmin || $isSuperAdminForUsulan ||
                 $usulanBelanja->user_id === $user->id ||
                 $isValidator,
             403
@@ -466,6 +486,7 @@ class UsulanBelanjaController extends Controller
         $usulanBelanja->load([
             'pengusul',
             'rkbu',
+            'sumberDana',
             'tahunAnggaran',
             'validator',
         ]);
@@ -475,7 +496,9 @@ class UsulanBelanjaController extends Controller
             && ! $usulanBelanja->workflow_instance_id;
         $canEditItemValues = $usulanBelanja->user_id === $user->id
             && ($canManageItems || $usulanBelanja->status_usulan === 'revision');
-        $availableItems = $canManageItems
+        $canEditItemValues = $canEditItemValues || $isSuperAdminForUsulan;
+        $canAddItems = $canManageItems || $isSuperAdminForUsulan;
+        $availableItems = $canAddItems
             ? $this->workflow->getAvailableItems($usulanBelanja)
             : collect();
         $selectedItems = $this->workflow->getSelectedItems($usulanBelanja);
@@ -508,7 +531,7 @@ class UsulanBelanjaController extends Controller
             ->orderBy('spj.nomor_urut')
             ->get()
             ->groupBy('item_id')
-            ->map(fn ($rows) => $rows->map(function ($progress) {
+            ->map(fn($rows) => $rows->map(function ($progress) {
                 $stepLabel = $progress->is_pptk_step
                     ? 'PPTK'
                     : ($progress->validator_type === 'hierarchy'
@@ -597,6 +620,7 @@ class UsulanBelanjaController extends Controller
             'canCreateSpj',
             'fromRekap',
             'canManageItems',
+            'canAddItems',
             'canEditItemValues',
             'availableItems',
             'selectedItems',
@@ -606,6 +630,8 @@ class UsulanBelanjaController extends Controller
 
     public function addItem(Request $request, UsulanBelanja $usulanBelanja)
     {
+        $isSuperAdminForUsulan = $request->user()->hasRole('Super Admin');
+
         $validated = $request->validate([
             'items' => ['required', 'array', 'min:1'],
             'items.*' => ['required', 'string', 'distinct', 'regex:/^(barjas|persediaan|modal|modal_alkes|pegawai):[0-9a-fA-F-]{36}$/'],
@@ -614,7 +640,8 @@ class UsulanBelanjaController extends Controller
         $added = $this->workflow->addItems(
             $usulanBelanja,
             $validated['items'],
-            $request->user()
+            $request->user(),
+            $isSuperAdminForUsulan
         );
 
         return redirect()
@@ -624,6 +651,8 @@ class UsulanBelanjaController extends Controller
 
     public function updateItems(Request $request, UsulanBelanja $usulanBelanja)
     {
+        $isSuperAdminForUsulan = $request->user()->hasRole('Super Admin');
+
         $validated = $request->validate([
             'items' => ['required', 'array', 'min:1'],
             'items.*' => ['required', 'array'],
@@ -636,7 +665,8 @@ class UsulanBelanjaController extends Controller
         $this->workflow->updateItems(
             $usulanBelanja,
             $validated['items'],
-            $request->user()
+            $request->user(),
+            $isSuperAdminForUsulan
         );
 
         return redirect()

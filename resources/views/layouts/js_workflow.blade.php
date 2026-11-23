@@ -329,14 +329,13 @@
     $('#btnCancelEditRkbu, #btnSaveRkbu').hide();
     $('#btnEditRkbu').show();
     $('#rkbu-edit-form').data('url', res.updateUrl);
+    $('#rkbu-edit-form').data('phase-order', Number(res.phaseOrder || 1));
+    $('#rkbu-edit-form').data('can-skip-shift-attachment', Boolean(res.canSkipShiftAttachment));
     $('#rkbu-edit-header-fields').toggle(Boolean(res.canManageHeader));
     $('#rkbu-header-locked-notice').toggle(Boolean(res.headerLocked));
     $('#rkbu-edit-header-fields select').prop('disabled', !res.canEditHeader || Boolean(res.headerLocked));
     $('#edit_sumber_dana_id, #edit_sub_kegiatan_id').prop('required', false);
     $('#rkbu-edit-form').data('can-edit-header', Boolean(res.canEditHeader) && !Boolean(res.headerLocked));
-    $('#rkbu-shift-fields').toggle(Number(res.phaseOrder || 1) !== 1);
-    $('#rkbu_shift_reason').val('');
-    $('#rkbu_shift_file').val('');
     $('#approval-next-official-wrapper').toggle(Boolean(res.requiresNextOfficial));
 
     const sourceSelect = $('#edit_sumber_dana_id').empty()
@@ -400,21 +399,70 @@
         card.attr('data-reserved-budget', Math.max(0, originalBudget - Number(originalFields.sisa_anggaran_rkbu ?? originalBudget)));
         const cardBody = $('<div class="card-body">').appendTo(card);
         $('<h6 class="mb-4">').text('Komponen ' + (index + 1)).appendTo(cardBody);
-        if (detail.locked) {
+            if (detail.locked) {
             $('<div class="alert alert-warning py-2">')
-                .text('Item ini sudah masuk Usulan Belanja. Nama barang/pegawai terkunci; volume, satuan, dan harga satuan masih dapat diubah.')
+                    .text('Item ini sudah masuk Usulan Belanja. Perubahan akan diperiksa agar tetap mencukupi reservasi dan pagu anggaran.')
                 .appendTo(cardBody);
         }
         const fieldsRow = $('<div class="row g-3">').appendTo(cardBody);
         Object.keys(detail.fields || {}).forEach(function(field) {
             const value = detail.fields[field];
-            const fieldLocked = Boolean(detail.locked)
-                && !['volume_1', 'volume_2', 'satuan_1', 'satuan_2', 'harga_satuan'].includes(field);
+            const isPersediaan = res.module === 'RKBU Persediaan';
+            const allowedWhileReserved = isPersediaan
+                ? ['nama_barang', 'spesifikasi', 'satuan_1', 'stok', 'rata_rata_pemakaian', 'pengadaan_sebelumnya', 'kebutuhan_per_bulan', 'buffer', 'harga_satuan', 'ppn', 'rating', 'link_ekatalog', 'penempatan'].includes(field)
+                : ['volume_1', 'volume_2', 'satuan_1', 'satuan_2', 'harga_satuan'].includes(field);
+            const fieldLocked = Boolean(detail.locked) && !allowedWhileReserved;
             const fieldGroup = $('<div class="col-md-6">').appendTo(fieldsRow);
             const label = field.replace(/_/g, ' ').replace(/\b\w/g, function(letter) {
                 return letter.toUpperCase();
             });
             $('<label class="form-label">').text(label).appendTo(fieldGroup);
+            if (field === 'satuan_1' || field === 'satuan_2') {
+                const options = field === 'satuan_1' ? (res.uraianSatus || []) : (res.uraianDuas || []);
+                const select = $('<select class="form-select rkbu-edit-value" data-control="select2">').attr('data-field', field)
+                    .prop('disabled', fieldLocked)
+                    .append($('<option>').val('').text('Pilih ' + label.toLowerCase()));
+                options.forEach(function(option) { select.append($('<option>').val(option).text(option)); });
+                if (value && !options.includes(String(value))) select.append($('<option>').val(value).text(value));
+                select.val(value || '').appendTo(fieldGroup);
+                select.select2({
+                    dropdownParent: $('#modalDetailApproval'),
+                    width: '100%',
+                    placeholder: 'Pilih ' + label.toLowerCase(),
+                    minimumResultsForSearch: 0
+                });
+                return;
+            }
+            if (/spesifikasi|spek|keterangan_status/i.test(field)) {
+                $('<textarea class="form-control rkbu-edit-value" rows="3" placeholder="' + (field === 'keterangan_status' ? 'Isi keterangan status' : 'Uraikan spesifikasi barang atau jasa') + '">')
+                    .attr('data-field', field)
+                    .prop('readonly', fieldLocked)
+                    .prop('disabled', fieldLocked)
+                    .val(value === null || value === undefined ? '' : value)
+                    .appendTo(fieldGroup);
+                return;
+            }
+            if (field === 'ppn') {
+                const switchWrap = $('<div class="form-check form-switch pt-2">').appendTo(fieldGroup);
+                const toggle = $('<input class="form-check-input rkbu-ppn-toggle" type="checkbox" role="switch">')
+                    .prop('checked', Number(value || 0) > 0)
+                    .prop('disabled', fieldLocked)
+                    .appendTo(switchWrap);
+                $('<label class="form-check-label">').text('Kenakan PPN' + (Number(value || 0) > 0 ? ' (' + value + '%)' : ' (11%)')).appendTo(switchWrap);
+                $('<input type="hidden" class="rkbu-edit-value">').attr('data-field', field)
+                    .val(value === null || value === undefined ? 0 : value).appendTo(fieldGroup);
+                return;
+            }
+            if (['harga_satuan', 'total_anggaran', 'sisa_anggaran_rkbu'].includes(field)) {
+                $('<div class="input-group">')
+                    .append($('<span class="input-group-text">').text('Rp'))
+                    .append($('<input class="form-control rkbu-currency-display" type="text" inputmode="decimal">')
+                        .val(new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(Number(value || 0))))
+                    .appendTo(fieldGroup);
+                $('<input type="hidden" class="rkbu-edit-value">').attr('data-field', field)
+                    .val(value === null || value === undefined ? '' : value).appendTo(fieldGroup);
+                return;
+            }
             $('<input class="form-control rkbu-edit-value">')
                 .attr({
                     'data-field': field,
@@ -430,7 +478,7 @@
             const field = $(this).data('field');
             const isDerivedQuantity = field === 'jumlah_volume'
                 && (originalFields.volume_1 !== undefined || originalFields.koefisien_remunerasi !== undefined);
-            return isDerivedQuantity || ['total_anggaran', 'sisa_vol_rkbu', 'sisa_anggaran_rkbu', 'total_gaji_pokok', 'total_remunerasi'].includes(field);
+            return isDerivedQuantity || ['total_anggaran', 'sisa_vol_rkbu', 'sisa_anggaran_rkbu', 'total_gaji_pokok', 'total_remunerasi', 'proyeksi_sisa_stok', 'kebutuhan_tahun_x1', 'kebutuhan_plus_buffer', 'rencana_pengadaan_tahun_x1'].includes(field);
         }).prop('readonly', true).addClass('bg-light');
         editableDetails.append(card);
     });
@@ -490,7 +538,10 @@
             values[$(this).data('field')] = $(this).val() === '' ? null : Number($(this).val());
         });
         const setValue = function(field, value) {
-            card.find('.rkbu-edit-value[data-field="' + field + '"]').val(Number.isFinite(value) ? value : 0);
+            const safeValue = Number.isFinite(value) ? value : 0;
+            card.find('.rkbu-edit-value[data-field="' + field + '"]').val(safeValue);
+            card.find('.rkbu-edit-value[data-field="' + field + '"]').siblings('.input-group').find('.rkbu-currency-display')
+                .val(new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(safeValue));
         };
         const reservedVolume = Number(card.attr('data-reserved-volume') || 0);
         const reservedBudget = Number(card.attr('data-reserved-budget') || 0);
@@ -506,6 +557,20 @@
             total = totalGaji + totalRemunerasi;
             setValue('total_gaji_pokok', totalGaji);
             setValue('total_remunerasi', totalRemunerasi);
+        } else if (values.stok !== undefined && values.rata_rata_pemakaian !== undefined) {
+            const annualNeed = Number(values.rata_rata_pemakaian || 0) * Number(values.kebutuhan_per_bulan || 0);
+            const projectedStock = Number(values.stok || 0) + Number(values.pengadaan_sebelumnya || 0) - annualNeed;
+            const needWithBuffer = annualNeed + (Number(values.rata_rata_pemakaian || 0) * Number(values.buffer || 0));
+            quantity = Math.max(0, needWithBuffer - projectedStock);
+            setValue('proyeksi_sisa_stok', projectedStock);
+            setValue('kebutuhan_tahun_x1', annualNeed);
+            setValue('kebutuhan_plus_buffer', needWithBuffer);
+            setValue('rencana_pengadaan_tahun_x1', quantity);
+            setValue('jumlah_volume', quantity);
+            if (values.harga_satuan !== undefined) {
+                total = quantity * Number(values.harga_satuan || 0)
+                    * (1 + Number(values.ppn || 0) / 100);
+            }
         } else {
             if (values.volume_1 !== undefined && values.volume_2 !== undefined) {
                 quantity = Number(values.volume_1 || 0) * Number(values.volume_2 || 0);
@@ -525,6 +590,26 @@
     $('#rkbu-edit-details').find('.rkbu-edit-detail').each(function() {
         recalculateApprovalDetail($(this));
     });
+    $('#rkbu-edit-details').off('change.approvalPpn', '.rkbu-ppn-toggle')
+        .on('change.approvalPpn', '.rkbu-ppn-toggle', function() {
+            const card = $(this).closest('.rkbu-edit-detail');
+            const rate = Number(card.find('.rkbu-edit-value[data-field="ppn"]').val()) || 11;
+            card.find('.rkbu-edit-value[data-field="ppn"]').val(this.checked ? rate : 0);
+            recalculateApprovalDetail(card);
+        });
+    $('#rkbu-edit-details').off('input.approvalCurrency', '.rkbu-currency-display')
+        .on('input.approvalCurrency', '.rkbu-currency-display', function() {
+            const raw = this.value.replace(/[^\d,.-]/g, '').replace(/\./g, '').replace(',', '.');
+            const value = Number(raw);
+            const hidden = $(this).closest('.input-group').siblings('.rkbu-edit-value');
+            hidden.val(Number.isFinite(value) ? value : 0);
+            recalculateApprovalDetail($(this).closest('.rkbu-edit-detail'));
+        });
+    $('#rkbu-edit-details').off('blur.approvalCurrency', '.rkbu-currency-display')
+        .on('blur.approvalCurrency', '.rkbu-currency-display', function() {
+            const hidden = $(this).closest('.input-group').siblings('.rkbu-edit-value');
+            this.value = new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(Number(hidden.val()) || 0);
+        });
     $('#rkbu-edit-details').off('input.approvalCalc change.approvalCalc', '.rkbu-edit-value')
         .on('input.approvalCalc change.approvalCalc', '.rkbu-edit-value', function() {
             recalculateApprovalDetail($(this).closest('.rkbu-edit-detail'));
@@ -608,13 +693,12 @@
                 formData.append(`details[${index}][fields][${field}]`, value ?? '');
             });
         });
-        if ($('#rkbu-shift-fields').is(':visible')) {
-            formData.append('alasan_pergeseran', $('#rkbu_shift_reason').val());
-            const proof = $('#rkbu_shift_file')[0].files[0];
-            if (proof) formData.append('lampiran_pergeseran', proof);
-        }
-
-        const save = function() { $.ajax({
+        const save = function(shiftData) {
+            if (shiftData) {
+                formData.append('alasan_pergeseran', shiftData.reason);
+                if (shiftData.file) formData.append('lampiran_pergeseran', shiftData.file);
+            }
+            $.ajax({
             url: $('#rkbu-edit-form').data('url'),
             type: 'POST',
             data: formData,
@@ -637,18 +721,57 @@
                     confirmButtonText: 'Mengerti'
                 });
             }
-        }); };
+            });
+        };
         const confirmSave = function() {
+            const canSkipAttachment = Boolean($('#rkbu-edit-form').data('can-skip-shift-attachment'));
+            const popupWidth = Math.min(1000, Math.max(320, window.innerWidth - 32)) + 'px';
             Swal.fire({
+                target: document.getElementById('modalDetailApproval'),
                 title: 'Konfirmasi pergeseran anggaran',
-                text: 'Perubahan RKBU fase ini akan dicatat sebagai pergeseran anggaran beserta lampirannya.',
+                width: popupWidth,
+                padding: '2rem',
+                customClass: { popup: 'approval-shift-confirmation' },
+                html: '<p class="mb-4">Perubahan RKBU fase ini akan dicatat sebagai pergeseran anggaran' + (canSkipAttachment ? '.' : ' beserta lampirannya.') + '</p>' +
+                    '<div class="text-start">' +
+                    '<label for="swal-shift-reason" class="form-label fw-semibold">Keterangan pergeseran anggaran <span class="text-danger">*</span></label>' +
+                    '<textarea id="swal-shift-reason" class="form-control mb-3" rows="3" style="width:100%;display:block;resize:vertical" placeholder="Jelaskan alasan pergeseran anggaran"></textarea>' +
+                    '<label for="swal-shift-file" class="form-label fw-semibold">Lampiran bukti/alasan ' + (canSkipAttachment ? '<span class="text-muted fw-normal">(opsional untuk Super Admin)</span>' : '<span class="text-danger">*</span>') + '</label>' +
+                    '<input id="swal-shift-file" type="file" class="form-control" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png">' +
+                    '<div class="form-text mt-2">PDF/JPG/PNG, maksimal 5 MB.</div></div>',
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonText: 'Ya, simpan perubahan',
-                cancelButtonText: 'Periksa kembali'
-            }).then(function(result) { if (result.isConfirmed) save(); });
+                cancelButtonText: 'Periksa kembali',
+                focusConfirm: false,
+                didOpen: function() {
+                    document.getElementById('swal-shift-reason')?.focus();
+                    const popup = Swal.getPopup();
+                    const html = popup?.querySelector('.swal2-html-container');
+                    if (popup) { popup.style.maxHeight = 'none'; popup.style.overflow = 'visible'; }
+                    if (html) { html.style.maxHeight = 'none'; html.style.overflow = 'visible'; }
+                },
+                preConfirm: function() {
+                    const reason = $('#swal-shift-reason').val().trim();
+                    const fileInput = $('#swal-shift-file')[0];
+                    const file = fileInput.files[0];
+                    if (!reason) {
+                        Swal.showValidationMessage('Keterangan pergeseran anggaran wajib diisi.');
+                        return false;
+                    }
+                    if (!file && !canSkipAttachment) {
+                        Swal.showValidationMessage('Lampiran bukti/alasan wajib dipilih.');
+                        return false;
+                    }
+                    if (file.size > 5 * 1024 * 1024) {
+                        Swal.showValidationMessage('Ukuran lampiran maksimal 5 MB.');
+                        return false;
+                    }
+                    return { reason: reason, file: file || null };
+                }
+            }).then(function(result) { if (result.isConfirmed) save(result.value); });
         };
-        if ($('#rkbu-shift-fields').is(':visible')) confirmSave(); else save();
+        if (Number($('#rkbu-edit-form').data('phase-order') || 1) > 1) confirmSave(); else save();
     });
 </script>
 

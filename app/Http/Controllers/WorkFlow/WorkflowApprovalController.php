@@ -13,6 +13,8 @@ use App\Models\MasterBackend\SettingRkbu\SumberDana;
 use App\Models\MasterBackend\SettingInput\JudulHeader;
 use App\Models\MasterBackend\SettingInput\TahunAnggaran;
 use App\Models\MasterBackend\SettingInput\TanggalPerencana;
+use App\Models\MasterBackend\SettingInput\UraianSatu;
+use App\Models\MasterBackend\SettingInput\UraianDua;
 use App\Models\Rkbu\Rkbu;
 use App\Models\Rkbu\RkbuEditHistory;
 use App\Support\RkbuEditHistoryPresenter;
@@ -67,6 +69,22 @@ class WorkflowApprovalController extends Controller
         'kondisi_rusak_berat',
     ];
 
+    private const EDITABLE_PERSEDIAAN_FIELDS = [
+        'nama_barang',
+        'spesifikasi',
+        'satuan_1',
+        'stok', // Kolom stok menampung nilai sisa stok pada detail persediaan.
+        'rata_rata_pemakaian',
+        'pengadaan_sebelumnya',
+        'kebutuhan_per_bulan',
+        'buffer',
+        'harga_satuan',
+        'ppn',
+        'rating',
+        'link_ekatalog',
+        'penempatan',
+    ];
+
     private const EDITABLE_FIELDS_AFTER_USULAN = [
         'volume_1',
         'volume_2',
@@ -77,6 +95,7 @@ class WorkflowApprovalController extends Controller
         'total_anggaran',
         'sisa_vol_rkbu',
         'sisa_anggaran_rkbu',
+        ...self::EDITABLE_PERSEDIAAN_FIELDS,
     ];
 
     public function index(Request $request, PaguAnggaranService $paguService)
@@ -269,7 +288,14 @@ class WorkflowApprovalController extends Controller
             'headerLocked' => $headerLocked,
             'editHistory' => $editHistory,
             'phaseOrder' => $phaseOrder,
+            'canSkipShiftAttachment' => auth()->user()->hasRole('Super Admin'),
             'editableDetails' => $editableDetails,
+            'uraianSatus' => $canEditRkbu
+                ? UraianSatu::query()->orderBy('nama_uraian_1')->pluck('nama_uraian_1')->values()
+                : collect(),
+            'uraianDuas' => $canEditRkbu
+                ? UraianDua::query()->orderBy('nama_uraian_2')->pluck('nama_uraian_2')->values()
+                : collect(),
             'sumberDanas' => $canManageHeader
                 ? SumberDana::query()->orderBy('nama_sumber_dana')->get([
                     'id_sumber_dana',
@@ -599,7 +625,22 @@ class WorkflowApprovalController extends Controller
 
     private function editableDetailFields($detail): array
     {
-        return collect($detail->getFillable())
+        $fillable = collect($detail->getFillable());
+        if ($detail->getTable() === 'rkbu_detail_persediaans') {
+            $fillable = $fillable->intersect(self::EDITABLE_PERSEDIAAN_FIELDS);
+            $fillable = $fillable->merge([
+                'proyeksi_sisa_stok',
+                'kebutuhan_tahun_x1',
+                'kebutuhan_plus_buffer',
+                'rencana_pengadaan_tahun_x1',
+                'jumlah_volume',
+                'total_anggaran',
+                'sisa_vol_rkbu',
+                'sisa_anggaran_rkbu',
+            ]);
+        }
+
+        return $fillable
             ->reject(fn($field) => in_array($field, ['id', 'rkbu_id'], true)
                 || str_starts_with($field, 'upload_file_'))
             ->mapWithKeys(fn($field) => [$field => $detail->{$field}])
@@ -661,7 +702,10 @@ class WorkflowApprovalController extends Controller
         ];
         if ($phaseOrder !== 1) {
             $rules['alasan_pergeseran'] = ['required', 'string', 'max:5000'];
-            $rules['lampiran_pergeseran'] = ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'];
+            $rules['lampiran_pergeseran'] = [
+                auth()->user()->hasRole('Super Admin') ? 'nullable' : 'required',
+                'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120',
+            ];
         }
         if ($canEditHeader) {
             $rules['sumber_dana_id'] = ['nullable', 'uuid', Rule::exists('sumber_danas', 'id_sumber_dana')];
@@ -743,15 +787,22 @@ class WorkflowApprovalController extends Controller
                 $detail = $rkbuDetails->get($submittedDetail['id']);
                 abort_unless($detail, 422, 'Detail RKBU yang dikirim tidak sesuai dengan dokumen ini.');
 
-                $fields = $submittedDetail['fields'];
                 $allowedFields = array_keys($this->editableDetailFields($detail));
-                abort_if(array_diff(array_keys($fields), $allowedFields), 422, 'Terdapat field detail RKBU yang tidak diizinkan.');
+                if ($detail->getTable() === 'rkbu_detail_persediaans') {
+                    $allowedFields = array_values(array_intersect($allowedFields, self::EDITABLE_PERSEDIAAN_FIELDS));
+                }
+                // Only pass model-approved attributes through to fill(); unexpected UI fields
+                // are ignored so one stale/extra control cannot block all valid RKBU edits.
+                $fields = array_intersect_key(
+                    $submittedDetail['fields'],
+                    array_fill_keys($allowedFields, true)
+                );
                 $changedFields = collect($fields)->filter(function ($value, $field) use ($detail) {
                     return ! $this->sameDetailValue($field, $value, $detail->{$field});
                 });
                 if ($this->isDetailLockedByUsulan($detail)) {
                     $disallowedChanges = $changedFields->keys()->reject(fn ($field) => in_array($field, self::EDITABLE_FIELDS_AFTER_USULAN, true));
-                    abort_if($disallowedChanges->isNotEmpty(), 422, 'Item "' . ($detail->nama_barang ?? $detail->nama_pegawai ?? 'RKBU') . '" sudah masuk Usulan Belanja. Nama item dan field lain tetap terkunci.');
+                    abort_if($disallowedChanges->isNotEmpty(), 422, 'Item "' . ($detail->nama_barang ?? $detail->nama_pegawai ?? 'RKBU') . '" sudah masuk Usulan Belanja. Field tersebut tidak dapat diubah.');
                 }
                 if ($changedFields->isEmpty()) {
                     continue;
@@ -787,7 +838,22 @@ class WorkflowApprovalController extends Controller
                     $detail->total_anggaran = $detail->total_gaji_pokok + $totalRemunerasi;
                 } else {
                     $quantity = (float) ($detail->jumlah_volume ?? 0);
-                    if ($detail->volume_1 !== null && $detail->volume_2 !== null) {
+                    if ($detail->getTable() === 'rkbu_detail_persediaans') {
+                        $stok = (float) ($detail->stok ?? 0);
+                        $rataRata = (float) ($detail->rata_rata_pemakaian ?? 0);
+                        $pengadaan = (float) ($detail->pengadaan_sebelumnya ?? 0);
+                        $kebutuhanBulanan = (float) ($detail->kebutuhan_per_bulan ?? 0);
+                        $buffer = (float) ($detail->buffer ?? 0);
+                        $kebutuhanTahun = $rataRata * $kebutuhanBulanan;
+                        $proyeksiSisaStok = $stok + $pengadaan - $kebutuhanTahun;
+                        $kebutuhanPlusBuffer = $kebutuhanTahun + ($rataRata * $buffer);
+                        $quantity = max(0, $kebutuhanPlusBuffer - $proyeksiSisaStok);
+                        $detail->proyeksi_sisa_stok = $proyeksiSisaStok;
+                        $detail->kebutuhan_tahun_x1 = $kebutuhanTahun;
+                        $detail->kebutuhan_plus_buffer = $kebutuhanPlusBuffer;
+                        $detail->rencana_pengadaan_tahun_x1 = $quantity;
+                        $detail->jumlah_volume = $quantity;
+                    } elseif ($detail->volume_1 !== null && $detail->volume_2 !== null) {
                         $quantity = (float) $detail->volume_1 * (float) $detail->volume_2;
                         $detail->jumlah_volume = $quantity;
                     }
@@ -827,7 +893,7 @@ class WorkflowApprovalController extends Controller
             $hasChange = $beforeAuditHeader !== $afterAuditHeader || $beforeAuditDetails !== $afterAuditDetails;
             $afterTotal = (float) $rkbuDetails->sum('total_anggaran');
 
-            if ($phaseOrder > 1 && $hasChange) {
+            if ($hasChange) {
                 RkbuEditHistory::query()->create([
                     'rkbu_id' => $rkbu->id,
                     'user_id' => auth()->id(),
@@ -1184,8 +1250,8 @@ class WorkflowApprovalController extends Controller
                 $paguService = app(PaguAnggaranService::class);
                 if ($paguService->phaseOrder($approvalRkbu->tahun_anggaran_id) >= 2) {
                     abort_unless($paguService->isAdministrator(), 403, 'Approval RKBU pada fase perubahan hanya dapat dilakukan Administrator.');
-                    $paguService->assertRkbuWithinPagu($approvalRkbu);
                 }
+                $paguService->assertRkbuWithinPagu($approvalRkbu);
             }
 
             $currentPosition = $approval->position

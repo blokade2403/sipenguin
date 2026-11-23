@@ -74,10 +74,16 @@ class RkbuPegawaiDataTable extends DataTable
                     . e(route('rkbu.pegawai.show', $row->id)) . '" title="Detail"><i class="fas fa-eye"></i></a>';
                 $canSubmit = (string) $row->rkbu?->created_by === (string) auth()->id()
                     && in_array($row->rkbu?->status, ['draft', 'revision', 'rejected'], true);
-                if ($canSubmit) {
+                $user = auth()->user();
+                $canEdit = in_array($row->rkbu?->status, ['draft', 'revision', 'rejected'], true)
+                    && ($canSubmit || $user->hasRole('Super Admin')
+                        || ($user->hasRole('Administrator') && $user->status_edit === 'aktif'));
+                if ($canEdit) {
                     $actions .= '<a class="btn btn-icon btn-bg-light btn-active-color-primary btn-sm me-1" href="'
-                        . e(route('rkbu.pegawai.edit', $row->id)) . '" title="Edit"><i class="fas fa-edit"></i></a>'
-                        . '<button class="btn btn-icon btn-bg-light btn-active-color-success btn-sm me-1 pegawai-submit" type="button" data-url="'
+                        . e(route('rkbu.pegawai.edit', $row->id)) . '" title="Edit"><i class="fas fa-edit"></i></a>';
+                }
+                if ($canSubmit) {
+                    $actions .= '<button class="btn btn-icon btn-bg-light btn-active-color-success btn-sm me-1 pegawai-submit" type="button" data-url="'
                         . e(route('rkbu.pegawai.submit', $row->id)) . '" title="Ajukan"><i class="fas fa-paper-plane"></i></button>'
                         . '<button class="btn btn-icon btn-bg-light btn-active-color-danger btn-sm pegawai-delete" type="button" data-url="'
                         . e(route('rkbu.pegawai.destroy', $row->id)) . '" title="Hapus"><i class="fas fa-trash"></i></button>';
@@ -113,7 +119,9 @@ class RkbuPegawaiDataTable extends DataTable
             ])
             ->whereHas('rkbu', function ($rkbuQuery) {
                 $rkbuQuery->where('tahun_anggaran_id', session('tahun_anggaran_id'));
-                if (! auth()->user()->hasRole('Administrator')) {
+                $user = auth()->user();
+                if (! $user->hasRole('Super Admin')
+                    && ! ($user->hasRole('Administrator') && $user->status_edit === 'aktif')) {
                     $rkbuQuery->where('created_by', auth()->id());
                 }
             });

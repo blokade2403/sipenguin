@@ -8,7 +8,12 @@
         .company-icon { display: inline-flex; width: 52px; height: 52px; flex: 0 0 52px; align-items: center; justify-content: center; border-radius: .9rem; background: #e8f3ff; color: #3699ff; font-size: 1.35rem; }
         .company-modal-icon { display: inline-flex; width: 44px; height: 44px; align-items: center; justify-content: center; border-radius: 12px; color: #3699ff; background: #eef6ff; }
         .company-table td { vertical-align: middle; }
+        .company-table-controls { display:flex; justify-content:space-between; align-items:center; gap:16px; margin-bottom:14px; color:#181c32; }
+        .company-page-size-control, .company-search-control { display:flex; align-items:center; gap:8px; }
+        .company-page-size-control select { width:76px; }
+        .company-search-control input { width:210px; }
         @media (max-width: 575.98px) { .company-hero-body { align-items: flex-start !important; flex-direction: column; padding: 1.15rem !important; } .company-add-action { width: 100%; } }
+        @media (max-width: 575.98px) { .company-table-controls { align-items:stretch; flex-direction:column; } .company-search-control { justify-content:space-between; } }
     </style>
 
     <div class="card company-hero mb-6 shadow-sm">
@@ -39,10 +44,27 @@
                 <div class="card-header border-0 pt-5">
                     <div class="card-title d-flex flex-column">
                         <h2 class="fw-bold text-gray-900 mb-1">Daftar Perusahaan</h2>
-                        <span class="text-muted fs-7">{{ $perusahaans->count() }} perusahaan terdaftar</span>
+                        <span class="text-muted fs-7">{{ $perusahaans->total() }} perusahaan terdaftar</span>
                     </div>
                 </div>
                 <div class="card-body pt-2">
+                    <div class="company-table-controls">
+                        <form method="GET" action="{{ route('perusahaans.index') }}" class="company-page-size-control">
+                            @if(request('search')) <input type="hidden" name="search" value="{{ request('search') }}"> @endif
+                            <label for="company-per-page">Tampilkan</label>
+                            <select id="company-per-page" name="per_page" class="form-select form-select-sm" onchange="this.form.submit()">
+                                @foreach([5, 10, 15, 25, 50, 100] as $option)
+                                    <option value="{{ $option }}" @selected((int) request('per_page', 15) === $option)>{{ $option }}</option>
+                                @endforeach
+                            </select>
+                            <span>data per halaman</span>
+                        </form>
+                        <form method="GET" action="{{ route('perusahaans.index') }}" class="company-search-control">
+                            @if(request('per_page')) <input type="hidden" name="per_page" value="{{ request('per_page') }}"> @endif
+                            <label for="company-search">Cari:</label>
+                            <input type="search" id="company-search" name="search" class="form-control form-control-sm" value="{{ request('search') }}" aria-label="Cari data perusahaan">
+                        </form>
+                    </div>
                     <div class="table-responsive">
                         <table id="responsive-reorder" class="table company-table table-row-dashed table-row-gray-300 align-middle gs-0 gy-4">
                             <thead>
@@ -58,7 +80,7 @@
                             <tbody>
                                 @forelse ($perusahaans as $index => $item)
                                     <tr>
-                                        <td class="text-muted">{{ $index + 1 }}</td>
+                                        <td class="text-muted">{{ $perusahaans->firstItem() + $index }}</td>
                                         <td>
                                             <div class="d-flex align-items-center">
                                                 <div class="symbol symbol-45px me-3"><span class="symbol-label bg-light-primary text-primary fw-bold"><i class="fas fa-building"></i></span></div>
@@ -94,6 +116,10 @@
                             </tbody>
                         </table>
                     </div>
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mt-4">
+                        <span class="text-muted fs-7">Menampilkan {{ $perusahaans->firstItem() ?? 0 }} sampai {{ $perusahaans->lastItem() ?? 0 }} dari {{ $perusahaans->total() }} data</span>
+                        {{ $perusahaans->onEachSide(1)->links() }}
+                    </div>
                 </div>
             </div>
         </div>
@@ -102,3 +128,17 @@
     @include('pengadaan.perusahaan.modal_add')
     @include('pengadaan.perusahaan.modal_edit')
 @endsection
+
+@push('scripts')
+    <script>
+        (() => {
+            const search = document.getElementById('company-search');
+            if (!search) return;
+            let timer;
+            search.addEventListener('input', () => {
+                clearTimeout(timer);
+                timer = setTimeout(() => search.form.requestSubmit(), 350);
+            });
+        })();
+    </script>
+@endpush

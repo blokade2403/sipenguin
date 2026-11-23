@@ -78,6 +78,7 @@
             <div class="ub-overview-grid">
                 <div class="ub-overview-item"><span><i class="ki-duotone ki-user"></i> Pengusul</span><strong>{{ $usulanBelanja->nama_pengusul ?: ($usulanBelanja->pengusul?->nama ?? '-') }}</strong></div>
                 <div class="ub-overview-item"><span><i class="ki-duotone ki-category"></i> Subkategori RKBU</span><strong>{{ $usulanBelanja->rkbu?->subKategoriRkbu?->nama_sub_kategori_rkbu ?? '-' }}</strong></div>
+                <div class="ub-overview-item"><span><i class="ki-duotone ki-wallet"></i> Sumber Dana</span><strong>{{ $usulanBelanja->sumberDana?->nama_sumber_dana ?? $usulanBelanja->rkbu?->sumberDana?->nama_sumber_dana ?? '-' }}</strong></div>
                 <div class="ub-overview-item"><span><i class="ki-duotone ki-calendar"></i> Tahun anggaran</span><strong>{{ $usulanBelanja->tahunAnggaran?->nama_tahun_anggaran ?? '-' }}</strong></div>
                 <div class="ub-overview-item"><span><i class="ki-duotone ki-time"></i> Tanggal validasi</span><strong>{{ $usulanBelanja->tanggal_validasi?->format('d-m-Y H:i') ?? 'Belum divalidasi' }}</strong></div>
                 <div class="ub-overview-item"><span><i class="ki-duotone ki-profile-user"></i> Validator terakhir</span><strong>{{ $usulanBelanja->nama_validasi ?? '-' }}</strong></div>
@@ -306,7 +307,7 @@
                 </button>
             @endif
 
-            @if($canManageItems)
+            @if($canAddItems)
                 <button type="button"
                         class="btn btn-primary mt-3"
                         data-bs-toggle="modal"
@@ -398,7 +399,7 @@
     @media(max-width:420px) { .ub-overview-grid { grid-template-columns:1fr; } .ub-number { font-size:1.15rem; } }
 </style>
 
-@if($canManageItems)
+@if($canAddItems)
     <div class="modal fade" id="usulan-item-modal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-xl">
             <div class="modal-content">

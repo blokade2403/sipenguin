@@ -211,7 +211,9 @@
                         <div class="col-xl-9">
                             <div class="form-check form-switch form-check-custom form-check-solid">
 
-                                <input class="form-check-input" type="checkbox" id="is_ppn" checked>
+                                <input type="hidden" name="is_ppn" value="0">
+                                <input class="form-check-input" type="checkbox" id="is_ppn" name="is_ppn" value="1"
+                                    @checked((bool) old('is_ppn', (float) $barjas->ppn > 0))>
 
                                 <label class="form-check-label fw-bold text-gray-400 ms-3">
                                     {{ $ppn->ppn }}%

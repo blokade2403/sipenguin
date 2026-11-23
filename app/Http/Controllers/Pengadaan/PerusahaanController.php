@@ -12,9 +12,27 @@ class PerusahaanController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $perusahaans    = Perusahaan::all();
+        $query = Perusahaan::query();
+        if ($request->filled('search')) {
+            $search = trim($request->input('search'));
+            $query->where(function ($query) use ($search) {
+                $query->where('nama_perusahaan', 'like', "%{$search}%")
+                    ->orWhere('alamat_perusahaan', 'like', "%{$search}%")
+                    ->orWhere('email_perusahaan', 'like', "%{$search}%")
+                    ->orWhere('tlp_perusahaan', 'like', "%{$search}%")
+                    ->orWhere('nama_direktur_perusahaan', 'like', "%{$search}%")
+                    ->orWhere('jabatan_perusahaan', 'like', "%{$search}%")
+                    ->orWhere('no_npwp', 'like', "%{$search}%");
+            });
+        }
+
+        $perPage = (int) $request->input('per_page', 15);
+        if (! in_array($perPage, [5, 10, 15, 25, 50, 100], true)) {
+            $perPage = 15;
+        }
+        $perusahaans = $query->orderBy('nama_perusahaan')->paginate($perPage)->withQueryString();
         return view('pengadaan.perusahaan.index', compact('perusahaans'), ['title' => 'Halaman Perusahaan', 'routePrefix' => 'perusahaans']);
     }
 

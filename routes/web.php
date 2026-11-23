@@ -11,6 +11,7 @@ use App\Http\Controllers\MasterBackend\SettingInput\KomponenController;
 use App\Http\Controllers\MasterBackend\SettingInput\PpnController;
 use App\Http\Controllers\MasterBackend\SettingInput\PenempatanController;
 use App\Http\Controllers\MasterBackend\SettingInput\PaguAnggaranController;
+use App\Http\Controllers\MasterBackend\SettingInput\PaguSubkategoriRkbuController;
 use App\Http\Controllers\MasterBackend\SettingInput\TahunAnggaranController;
 use App\Http\Controllers\MasterBackend\SettingInput\TanggalPerencanaController;
 use App\Http\Controllers\MasterBackend\SettingInput\TargetSpsController;
@@ -49,6 +50,7 @@ use App\Http\Controllers\Rkbu\RkbuPersediaanController;
 use App\Http\Controllers\Rkbu\RkbuBulkImportController;
 use App\Http\Middleware\EnforceRkbuPhaseAccess;
 use App\Http\Controllers\UsulanBelanja\UsulanBelanjaController;
+use App\Http\Controllers\UsulanBelanja\UsulanBelanjaHistoryController;
 use App\Http\Controllers\UsulanBelanja\SpjUsulanBelanjaController;
 use App\Http\Controllers\UsulanBelanja\PengadaanWorkflowController;
 use App\Http\Controllers\UsulanBelanja\ValidasiUsulanBelanjaController;
@@ -202,6 +204,7 @@ Route::middleware('auth')->group(function () {
         ->group(function () {
 
             Route::get('/rkbu-history', [RkbuEditHistoryController::class, 'index'])->name('rkbu-history');
+            Route::get('/rkbu-history/{module}', [RkbuEditHistoryController::class, 'index'])->name('rkbu-history.module');
 
             Route::get(
                 '/approval',
@@ -266,6 +269,10 @@ Route::middleware('auth')->group(function () {
         Route::resource('ppns', PpnController::class);
         Route::resource('judul_headers', JudulHeaderController::class);
         Route::resource('anggarans', AnggaranController::class);
+        Route::resource('pagu-subkategori', PaguSubkategoriRkbuController::class)
+            ->parameters(['pagu-subkategori' => 'paguSubkategori'])
+            ->names('pagu_subkategori')
+            ->except(['show']);
         Route::get('pagu-anggaran/{paguAnggaran}/history', [PaguAnggaranController::class, 'history'])->name('pagu_anggaran.history');
         Route::resource('pagu-anggaran', PaguAnggaranController::class)
             ->parameters(['pagu-anggaran' => 'paguAnggaran'])
@@ -295,6 +302,7 @@ Route::middleware('auth')->group(function () {
 
     Route::prefix('usulan-belanja')->name('usulan-belanja.')
         ->group(function () {
+            Route::get('/history', [UsulanBelanjaHistoryController::class, 'index'])->name('history');
             Route::get('/', [
                 UsulanBelanjaController::class,
                 'index',

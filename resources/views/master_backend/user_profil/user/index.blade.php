@@ -208,3 +208,29 @@
     </div>
     @include('components.partials.calender')
 @endsection
+
+@push('scripts')
+    <script>
+        document.querySelectorAll('[id^="kt_modal_edit_user_"]').forEach(function (modal) {
+            modal.addEventListener('shown.bs.modal', function () {
+                if (typeof jQuery === 'undefined' || !jQuery.fn.select2) {
+                    return;
+                }
+
+                jQuery(modal).find('select[data-control="select2"]').each(function () {
+                    var select = jQuery(this);
+
+                    // Select2 may already have been initialized while its modal was hidden.
+                    if (select.hasClass('select2-hidden-accessible')) {
+                        select.select2('destroy');
+                    }
+
+                    select.select2({
+                        dropdownParent: jQuery(modal),
+                        width: '100%'
+                    });
+                });
+            });
+        });
+    </script>
+@endpush

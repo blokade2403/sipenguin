@@ -77,8 +77,6 @@ class WorkflowApprovalDataTable
 
         if (! empty($filters['approval_status'])) {
             $data->where('status', $filters['approval_status']);
-        } elseif (! $isSuperAdmin) {
-            $data->whereIn('status', ['pending', 'approved']);
         }
 
         $module = $request->query('module', 'all');

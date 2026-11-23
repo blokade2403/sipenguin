@@ -44,15 +44,20 @@ class PaguAnggaranController extends Controller
             ->map(function (PaguAnggaran $pagu) use ($paguService) {
                 $pagu->rkbu_terpakai = $paguService->totalRkbuForAccount(
                     $pagu->tahun_anggaran_id,
-                    $pagu->id_kode_rekening_belanja
+                    $pagu->id_kode_rekening_belanja,
+                    null,
+                    $pagu->jenis_sumber_dana
                 );
                 $pagu->rkbu_tervalidasi = $paguService->approvedRkbuForAccount(
                     $pagu->tahun_anggaran_id,
-                    $pagu->id_kode_rekening_belanja
+                    $pagu->id_kode_rekening_belanja,
+                    $pagu->jenis_sumber_dana
                 );
                 $pagu->usulan_terpakai = $paguService->totalUsulanForAccount(
                     $pagu->tahun_anggaran_id,
-                    $pagu->id_kode_rekening_belanja
+                    $pagu->id_kode_rekening_belanja,
+                    null,
+                    $pagu->jenis_sumber_dana
                 );
 
                 return $pagu;
@@ -142,6 +147,7 @@ class PaguAnggaranController extends Controller
                 'required', 'uuid', 'exists:rekening_belanjas,id_kode_rekening_belanja',
                 Rule::unique('pagu_anggarans', 'id_kode_rekening_belanja')
                     ->where('tahun_anggaran_id', $request->input('tahun_anggaran_id'))
+                    ->where('jenis_sumber_dana', $request->input('jenis_sumber_dana'))
                     ->ignore($pagu?->id),
             ],
             'jenis_sumber_dana' => ['required', Rule::in(['BLUD', 'Non BLUD'])],

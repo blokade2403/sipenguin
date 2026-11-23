@@ -157,7 +157,7 @@ class RkbuBarjasController extends Controller
                 '',
                 $request->harga_satuan
             );
-            $ppn = (float) ($request->ppn ?? 0);
+            $ppn = $request->boolean('is_ppn') ? (float) ($request->ppn ?? 0) : 0;
             $subtotal = $jumlahVolume * $hargaSatuan;
             $nilaiPpn = ($subtotal * $ppn) / 100;
             $totalAnggaran = $subtotal + $nilaiPpn;
@@ -363,7 +363,7 @@ class RkbuBarjasController extends Controller
                 $request->harga_satuan
             );
 
-            $ppn = (float) ($request->ppn ?? 0);
+            $ppn = $request->boolean('is_ppn') ? (float) ($request->ppn ?? 0) : 0;
 
             $subtotal = $jumlahVolume * $hargaSatuan;
 

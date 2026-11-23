@@ -51,7 +51,9 @@
 
             let volume1 = parseFloat($('#volume_1').val()) || 0;
             let volume2 = parseFloat($('#volume_2').val()) || 0;
-            let harga = parseFloat($('#harga_satuan').val()) || 0;
+            // Harga satuan di form edit ditampilkan dengan pemisah ribuan titik
+            // (contoh 10.000); parseFloat akan keliru membacanya sebagai 10.
+            let harga = parseFloat(String($('#harga_satuan').val() || '').replace(/\./g, '').replace(',', '.')) || 0;
             let ppn = parseFloat($('#ppn').val()) || 0;
 
             // jumlah volume
@@ -78,6 +80,7 @@
         $('#volume_2').on('keyup change', hitungAnggaran);
         $('#harga_satuan').on('keyup change', hitungAnggaran);
         $('#is_ppn').on('change', hitungAnggaran);
+        hitungAnggaran();
 
     });
 </script>
