@@ -60,7 +60,7 @@ class RkbuListFilters
             ->where('tahun_anggaran_id', session('tahun_anggaran_id'))
             ->whereHas($detailRelation);
 
-        if (! auth()->user()->hasRole('Administrator')) {
+        if (! auth()->user()->hasRole('Administrator') && ! auth()->user()->hasRole('Super Admin')) {
             $rkbUs->where('created_by', auth()->id());
         }
 

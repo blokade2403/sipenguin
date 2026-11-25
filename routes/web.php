@@ -58,6 +58,7 @@ use App\Http\Controllers\Assets\AssetModuleController;
 use App\Http\Controllers\Assets\AssetImportController;
 use App\Http\Controllers\Persediaan\PersediaanInventoryController;
 use App\Http\Controllers\Pendapatan\PendapatanController;
+use App\Http\Controllers\RbaIkhtisarController;
 use App\Http\Controllers\Perencanaan\TugasPerencanaanController;
 use App\Http\Controllers\Perencanaan\DokumenPerencanaanController;
 use App\Http\Controllers\Pengadaan\PerusahaanController;
@@ -150,6 +151,11 @@ Route::middleware('auth')->group(function () {
     Route::get('/monitoring-anggaran/blud', [MonitoringAnggaranController::class, 'blud'])->name('monitoring-anggaran.blud');
     Route::get('/monitoring-anggaran/keseluruhan', [MonitoringAnggaranController::class, 'keseluruhan'])->name('monitoring-anggaran.keseluruhan');
     Route::get('/monitoring-anggaran/laporan-bulanan', LaporanRealisasiBulananController::class)->name('monitoring-anggaran.laporan-bulanan');
+    Route::get('/rba-ikhtisar', [RbaIkhtisarController::class, 'index'])->name('rba-ikhtisar.index');
+    Route::get('/setting-input/rba-ikhtisar', [RbaIkhtisarController::class, 'mappings'])->name('rba-ikhtisar.mappings');
+    Route::get('/setting-input/rba-ikhtisar/{item}/mapping', [RbaIkhtisarController::class, 'editMapping'])->name('rba-ikhtisar.mapping.edit');
+    Route::put('/setting-input/rba-ikhtisar/{item}/mapping', [RbaIkhtisarController::class, 'updateMappings'])->name('rba-ikhtisar.mapping.update');
+    Route::put('/setting-input/rba-ikhtisar/{item}/realisasi', [RbaIkhtisarController::class, 'saveRealisasi'])->name('rba-ikhtisar.realisasi.save');
     Route::resource('perusahaans', PerusahaanController::class);
     Route::prefix('setting-user')->group(function () {
         Route::resource('fases', FaseController::class);

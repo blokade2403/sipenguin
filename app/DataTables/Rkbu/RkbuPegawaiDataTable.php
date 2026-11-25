@@ -61,6 +61,7 @@ class RkbuPegawaiDataTable extends DataTable
                     . '<div class="text-gray-600 mt-1">' . e($row->jabatan ?: '-') . '</div>'
                     . '<div class="text-gray-400 fs-7 mt-1">Unit: ' . e($rkbu?->unit?->nama_unit ?? '-')
                     . ' · Dibuat: ' . e(optional($row->created_at)->format('d-m-Y H:i') ?? '-') . '</div>'
+                    . (auth()->user()->hasRole('Super Admin') ? '<div class="text-gray-500 fs-7 mt-1">User Pengusul: ' . e($rkbu?->creator?->nama ?? '-') . '</div>' : '')
                     . ($approvalBadges !== '' ? '<div class="mt-3">' . $approvalBadges . '</div>' : '')
                     . '</div></div></div>';
             })
@@ -76,16 +77,22 @@ class RkbuPegawaiDataTable extends DataTable
                     && in_array($row->rkbu?->status, ['draft', 'revision', 'rejected'], true);
                 $user = auth()->user();
                 $canEdit = in_array($row->rkbu?->status, ['draft', 'revision', 'rejected'], true)
+                    && $user->status_edit === 'aktif'
                     && ($canSubmit || $user->hasRole('Super Admin')
                         || ($user->hasRole('Administrator') && $user->status_edit === 'aktif'));
                 if ($canEdit) {
                     $actions .= '<a class="btn btn-icon btn-bg-light btn-active-color-primary btn-sm me-1" href="'
                         . e(route('rkbu.pegawai.edit', $row->id)) . '" title="Edit"><i class="fas fa-edit"></i></a>';
                 }
-                if ($canSubmit) {
-                    $actions .= '<button class="btn btn-icon btn-bg-light btn-active-color-success btn-sm me-1 pegawai-submit" type="button" data-url="'
-                        . e(route('rkbu.pegawai.submit', $row->id)) . '" title="Ajukan"><i class="fas fa-paper-plane"></i></button>'
-                        . '<button class="btn btn-icon btn-bg-light btn-active-color-danger btn-sm pegawai-delete" type="button" data-url="'
+                $isDraft = $row->rkbu?->status === 'draft';
+                if (($isDraft || $canSubmit) && ($isDraft || $user->status_edit === 'aktif')) {
+                    $submitDisabled = $isDraft ? ' disabled aria-disabled="true"' : '';
+                    $submitClass = $isDraft ? ' disabled' : '';
+                    $actions .= '<button class="btn btn-icon btn-bg-light btn-active-color-success btn-sm me-1 pegawai-submit' . $submitClass . '" type="button"' . $submitDisabled . ' data-url="'
+                        . e(route('rkbu.pegawai.submit', $row->id)) . '" title="Ajukan"><i class="fas fa-paper-plane"></i></button>';
+                }
+                if ($canSubmit && $user->status_edit === 'aktif') {
+                    $actions .= '<button class="btn btn-icon btn-bg-light btn-active-color-danger btn-sm pegawai-delete" type="button" data-url="'
                         . e(route('rkbu.pegawai.destroy', $row->id)) . '" title="Hapus"><i class="fas fa-trash"></i></button>';
                 }
 
@@ -112,6 +119,7 @@ class RkbuPegawaiDataTable extends DataTable
         $query = $model->newQuery()
             ->with([
                 'rkbu.unit',
+                'rkbu.creator',
                 'rkbu.sumberDana',
                 'rkbu.subKategoriRkbu',
                 'rkbu.workflowInstance.approvals.validatorUser',

@@ -18,10 +18,12 @@
                 <div class="text-muted">Kelola data kebutuhan dan pengajuan RKBU.</div>
             </div>
         </div>
+        @if (auth()->check() && auth()->user()->status_edit === 'aktif')
         @isset($routePrefix)
             <a href="{{ route($routePrefix . '.create') }}" class="btn btn-primary rkbu-hero-action">
                 <i class="fas fa-plus me-2"></i>Tambah Data
             </a>
         @endisset
+        @endif
     </div>
 </div>

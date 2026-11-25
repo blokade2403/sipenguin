@@ -57,10 +57,17 @@ class RkbuBulkImportController extends Controller
         $headers = collect($rows->first())->map(fn ($value) => trim((string) $value))->all();
         if (array_diff(self::FIELDS[$module], $headers)) return back()->withErrors(['file' => 'Kolom template tidak sesuai. Unduh template untuk jenis RKBU ini.']);
         $map = array_flip($headers);
-        $subcategoryQuery = SubKategoriRkbu::query()->where('status', 'aktif')->with('kategori.jenis_kategori_rkbu');
-        $typeLabel = match ($module) { 'barjas' => 'Barang Jasa', 'modal_kantor' => 'Modal Kantor', 'modal_alkes' => 'Modal Alkes', default => 'Pegawai' };
-        $subcategoryQuery->whereHas('kategori.jenis_kategori_rkbu', fn ($query) => $query->where('nama_jenis_kategori_rkbu', 'like', "%{$typeLabel}%"));
-        $subcategories = $subcategoryQuery->get()->keyBy('kode_sub_kategori_rkbu');
+        $typeLabels = match ($module) {
+            'barjas' => ['Barang Jasa'],
+            'modal_kantor' => ['Modal Kantor', 'Modal Kantor Lainnya'],
+            'modal_alkes' => ['Modal Alat Kesehatan'],
+            default => ['Pegawai'],
+        };
+        $subcategories = SubKategoriRkbu::query()
+            ->where('status', 'aktif')
+            ->whereHas('kategori.jenis_kategori_rkbu', fn ($query) => $query->whereIn('nama_jenis_kategori_rkbu', $typeLabels))
+            ->get()
+            ->groupBy(fn ($subcategory) => $this->normalizeSubcategoryCode($subcategory->kode_sub_kategori_rkbu));
         $data = [];
         $errors = [];
         foreach ($rows->skip(1) as $i => $row) {
@@ -69,8 +76,14 @@ class RkbuBulkImportController extends Controller
             if (!collect($r)->filter(fn ($v) => $v !== null && trim((string) $v) !== '')->isNotEmpty()) continue;
             $line = $i + 2;
             $rowErrorCount = count($errors);
-            $sub = $subcategories->get(trim((string) ($r['kode_sub_kategori_rkbu'] ?? '')));
-            if (!$sub) { $errors[] = "Baris {$line}: kode subkategori tidak ditemukan."; continue; }
+            $subcategoryCode = trim((string) ($r['kode_sub_kategori_rkbu'] ?? ''));
+            $codeMatches = $subcategories->get($this->normalizeSubcategoryCode($subcategoryCode), collect());
+            if ($codeMatches->count() !== 1) {
+                $reason = $codeMatches->isEmpty() ? 'tidak ditemukan' : 'terdaftar lebih dari satu kali';
+                $errors[] = "Baris {$line}: kode subkategori '{$subcategoryCode}' {$reason} untuk jenis RKBU ini.";
+                continue;
+            }
+            $sub = $codeMatches->first();
             $nameField = $module === 'pegawai' ? 'nama_pegawai' : 'nama_barang';
             $requiredNumbers = $module === 'pegawai' ? ['bulan','koefisien_remunerasi','koefisien_gaji'] : ['volume_1','harga_satuan'];
             if (trim((string) ($r[$nameField] ?? '')) === '') $errors[] = "Baris {$line}: {$nameField} wajib diisi.";
@@ -81,11 +94,18 @@ class RkbuBulkImportController extends Controller
         if ($errors) return back()->withErrors(['file' => implode(' ', array_slice($errors, 0, 8)) . (count($errors) > 8 ? ' Kesalahan lainnya: ' . (count($errors) - 8) : '')]);
         if (!$data) return back()->withErrors(['file' => 'Tidak ada baris yang dapat diimpor.']);
 
-        DB::transaction(function () use ($data, $module) {
+        $sumberDanaId = SumberDana::query()
+            ->whereRaw('LOWER(TRIM(nama_sumber_dana)) = ?', ['blud'])
+            ->value('id_sumber_dana');
+        if (!$sumberDanaId) {
+            return back()->withErrors(['file' => 'Sumber dana BLUD belum tersedia. Tambahkan sumber dana BLUD sebelum mengimpor.']);
+        }
+
+        DB::transaction(function () use ($data, $module, $sumberDanaId) {
             foreach ($data as [$r, $sub]) {
                 $kategori = KategoriRkbu::findOrFail($sub->id_kategori_rkbu);
                 $jenisBelanja = JenisBelanja::where('nama_jenis_belanja', 'LIKE', '%Barang%')->firstOrFail();
-                $rkbu = Rkbu::create(['nomor_rkbu' => $this->number(), 'tahun_anggaran_id' => Session::get('tahun_anggaran_id'), 'unit_id' => Session::get('unit_id'), 'sumber_dana_id' => SumberDana::query()->firstOrFail()->id_sumber_dana, 'jenis_belanja_id' => $jenisBelanja->id_jenis_belanja, 'jenis_kategori_rkbu_id' => $kategori->id_jenis_kategori_rkbu, 'sub_kategori_rkbu_id' => $sub->id_sub_kategori_rkbu, 'created_by' => auth()->id(), 'status' => 'draft']);
+                $rkbu = Rkbu::create(['nomor_rkbu' => $this->number(), 'tahun_anggaran_id' => Session::get('tahun_anggaran_id'), 'unit_id' => Session::get('unit_id'), 'sumber_dana_id' => $sumberDanaId, 'jenis_belanja_id' => $jenisBelanja->id_jenis_belanja, 'jenis_kategori_rkbu_id' => $kategori->id_jenis_kategori_rkbu, 'sub_kategori_rkbu_id' => $sub->id_sub_kategori_rkbu, 'created_by' => auth()->id(), 'status' => 'draft']);
                 if ($module === 'pegawai') {
                     $bulan = (float) $r['bulan']; $gaji = (float) ($r['gaji_pokok'] ?: 0); $rem = (float) ($r['remunerasi'] ?: 0); $kg = (float) $r['koefisien_gaji']; $kr = (float) $r['koefisien_remunerasi'];
                     $bpjs = $gaji * $bulan * $kg * ((float) ($r['bpjs_kesehatan'] ?: 0) + (float) ($r['bpjs_tk'] ?: 0) + (float) ($r['bpjs_jht'] ?: 0)) / 100;
@@ -110,5 +130,10 @@ class RkbuBulkImportController extends Controller
         $year = now()->year; $sequence = Rkbu::whereYear('created_at', $year)->count() + 1;
         do { $number = sprintf('RKBU-%s-%04d', $year, $sequence++); } while (Rkbu::where('nomor_rkbu', $number)->exists());
         return $number;
+    }
+
+    private function normalizeSubcategoryCode(mixed $code): string
+    {
+        return strtolower(trim(str_replace(["\u{FEFF}", "\u{00A0}"], '', (string) $code)));
     }
 }

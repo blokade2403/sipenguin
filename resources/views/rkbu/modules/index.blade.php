@@ -11,10 +11,12 @@
                     @include('rkbu.partials.bulk_import', ['module' => $importModule])
                 @endif
                 <span id="module-selected-count" class="text-muted me-3">0 dipilih</span>
+                @if (auth()->check() && auth()->user()->status_edit === 'aktif')
                 <button type="button" id="module-bulk-submit" class="btn btn-sm btn-light-primary me-3"
                     data-url="{{ route('rkbu.' . $config['route'] . '.bulk-submit') }}" disabled>
                     <i class="fas fa-paper-plane me-1"></i> Ajukan Terpilih
                 </button>
+                @endif
             </div>
         </div>
 

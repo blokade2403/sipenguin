@@ -121,13 +121,9 @@ class RkbuModalKantorDataTable extends DataTable
                                         Nomor RKBU :
                                         ' . e($row->rkbu?->nomor_rkbu) . '
                                     </span>
-                                    <span class="badge badge-light-secondary">
-                                        Subkategori :
-                                        ' . e($subcategoryLabel) . '
-                                    </span>
                                 </div>
                             </Span>
-                            ' . ($statusIcons !== '' ? '<div class="d-flex flex-wrap align-items-center mt-2">' . $statusIcons . '</div>' : '') . '
+                           
                         </div>
                          <div class="card mb-2 mb-xxl-6">
                             <div class="card-body pb-0">
@@ -141,6 +137,7 @@ class RkbuModalKantorDataTable extends DataTable
                                             <a href="#"
                                                 class="text-gray-900 text-hover-primary fs-6 fw-bolder">' . e($row->nama_barang) . '</a>
                                             <span class="text-gray-400 fw-bold">Tanggal Dibuat : ' . e($row->created_at) . '</span>
+                                            ' . (auth()->user()->hasRole('Super Admin') ? '<span class="text-gray-500 fw-bold">User Pengusul : ' . e($row->rkbu?->creator?->nama ?? '-') . '</span>' : '') . '
                                         </div>
                                     </div>
                                 </div>
@@ -186,6 +183,8 @@ class RkbuModalKantorDataTable extends DataTable
                                             <!--end::Svg Icon-->Lampiran KAP</a>
                                         ' . $kapAttachments . '
                                     </div>
+                                     <div class="text-gray-800 mb-2 fw-bolder">Subkategori : ' . e($subcategoryLabel) . '</div>
+                            ' . ($statusIcons !== '' ? '<div class="d-flex flex-wrap align-items-center mt-2">' . $statusIcons . '</div>' : '') . '
                                     <!--end::Toolbar-->
                                 </div>
                             </div>
@@ -247,7 +246,8 @@ class RkbuModalKantorDataTable extends DataTable
 
                     $submitButton = '
         <button type="button"
-            class="btn btn-icon btn-bg-light btn-active-color-success btn-sm me-1 btn-submit"
+            class="btn btn-icon btn-bg-light btn-active-color-success btn-sm me-1 btn-submit disabled"
+            disabled aria-disabled="true"
             data-id="' . $row->id . '"
             data-url="' . route('rkbu.modal_kantor.submit', $row->id) . '"
             title="Ajukan RKBU">
@@ -255,7 +255,7 @@ class RkbuModalKantorDataTable extends DataTable
             <i class="fas fa-paper-plane"></i>
 
         </button>';
-                } elseif (in_array($status, ['revision', 'rejected'])) {
+                } elseif (auth()->user()->status_edit === 'aktif' && in_array($status, ['revision', 'rejected'])) {
 
                     $submitButton = '
         <button type="button"
@@ -270,7 +270,7 @@ class RkbuModalKantorDataTable extends DataTable
                 }
 
                 // Edit & Delete hanya untuk Draft dan Revision
-                if (in_array($status, ['draft', 'revision', 'rejected'])) {
+                if (auth()->user()->status_edit === 'aktif' && in_array($status, ['draft', 'revision', 'rejected'])) {
 
                     $editButton = '
         <a href="' . route('rkbu.modal_kantor.edit', $row->id) . '"
@@ -398,7 +398,7 @@ class RkbuModalKantorDataTable extends DataTable
             ->whereHas('rkbu', function ($q) {
                 $q->where('tahun_anggaran_id', session('tahun_anggaran_id'));
 
-                if (! auth()->user()->roles->contains('nama_role', 'Administrator')) {
+                if (! auth()->user()->hasRole('Administrator') && ! auth()->user()->hasRole('Super Admin')) {
                     $q->where('created_by', auth()->id());
                 }
             });
@@ -472,4 +472,3 @@ class RkbuModalKantorDataTable extends DataTable
         return 'RkbuBarjas_' . date('YmdHis');
     }
 }
-

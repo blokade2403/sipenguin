@@ -88,6 +88,12 @@
                      </a>
                  </div>
                  <div class="menu-item">
+                     <a class="menu-link {{ request()->routeIs('rba-ikhtisar.index') ? 'active' : '' }}" href="{{ route('rba-ikhtisar.index') }}">
+                         <span class="menu-icon"><i class="fas fa-file-invoice-dollar fs-4"></i></span>
+                         <span class="menu-title">Ikhtisar RBA</span>
+                     </a>
+                 </div>
+                 <div class="menu-item">
                      <a class="menu-link" href="{{ route('dashboard') }}">
                          <span class="menu-icon">
                              <!--begin::Svg Icon | path: icons/duotune/art/art002.svg-->
@@ -299,6 +305,12 @@
                                          <a class="menu-link" href="{{ route('pagu_subkategori.index') }}">
                                              <span class="menu-bullet"><span class="bullet bullet-dot"></span></span>
                                              <span class="menu-title">Pagu Subkategori RKBU</span>
+                                         </a>
+                                     </div>
+                                     <div class="menu-item">
+                                         <a class="menu-link" href="{{ route('rba-ikhtisar.mappings') }}">
+                                             <span class="menu-bullet"><span class="bullet bullet-dot"></span></span>
+                                             <span class="menu-title">Pemetaan Ikhtisar RBA</span>
                                          </a>
                                      </div>
                                      <div class="menu-item menu-accordion {{ request()->routeIs('workflowapproval.rkbu-history*', 'usulan-belanja.history') ? 'show' : '' }}" data-kt-menu-trigger="click">

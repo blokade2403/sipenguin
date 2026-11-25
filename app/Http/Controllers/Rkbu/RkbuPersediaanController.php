@@ -107,6 +107,9 @@ class RkbuPersediaanController extends Controller
         $map = collect($headers)->flip();
         $subKategoriMap = $this->subKategoriOptions()->get()->keyBy('kode_sub_kategori_rkbu');
         $jenisBelanja = JenisBelanja::where('nama_jenis_belanja', 'LIKE', '%Barang%')->firstOrFail();
+        $sumberDanaBlud = SumberDana::query()
+            ->whereRaw('UPPER(TRIM(nama_sumber_dana)) = ?', ['BLUD'])
+            ->firstOrFail();
         $ppnAktif = Ppn::where('status', 'aktif')->firstOrFail();
         $accepted = [];
         $errors = [];
@@ -131,12 +134,12 @@ class RkbuPersediaanController extends Controller
         if ($errors) return back()->withErrors(['file' => implode(' ', array_slice($errors, 0, 8)) . (count($errors) > 8 ? ' Dan ' . (count($errors) - 8) . ' kesalahan lainnya.' : '')]);
         if (!$accepted) return back()->withErrors(['file' => 'Tidak ada data valid untuk diimpor.']);
 
-        DB::transaction(function () use ($accepted, $jenisBelanja, $ppnAktif) {
+        DB::transaction(function () use ($accepted, $jenisBelanja, $ppnAktif, $sumberDanaBlud) {
             foreach ($accepted as [$row, $subcategory]) {
                 $kategori = KategoriRkbu::findOrFail($subcategory->id_kategori_rkbu);
                 $rkbu = Rkbu::create([
                     'nomor_rkbu' => $this->generateNomorRkbu(), 'tahun_anggaran_id' => Session::get('tahun_anggaran_id'),
-                    'unit_id' => Session::get('unit_id'), 'sumber_dana_id' => SumberDana::query()->firstOrFail()->id_sumber_dana,
+                    'unit_id' => Session::get('unit_id'), 'sumber_dana_id' => $sumberDanaBlud->id_sumber_dana,
                     'jenis_belanja_id' => $jenisBelanja->id_jenis_belanja, 'jenis_kategori_rkbu_id' => $kategori->id_jenis_kategori_rkbu,
                     'sub_kategori_rkbu_id' => $subcategory->id_sub_kategori_rkbu, 'created_by' => auth()->id(), 'status' => 'draft',
                 ]);

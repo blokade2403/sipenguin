@@ -143,6 +143,7 @@ class RkbuPersediaanDataTable extends DataTable
                                             <a href="#"
                                                 class="text-gray-900 text-hover-primary fs-6 fw-bolder">' . e($row->nama_barang) . '</a>
                                             <span class="text-gray-400 fw-bold">Tanggal Dibuat : ' . e($row->created_at) . '</span>
+                                            ' . (auth()->user()->hasRole('Super Admin') ? '<span class="text-gray-500 fw-bold">User Pengusul : ' . e($row->rkbu?->creator?->nama ?? '-') . '</span>' : '') . '
                                         </div>
                                     </div>
                                 </div>
@@ -253,7 +254,8 @@ class RkbuPersediaanDataTable extends DataTable
 
                     $submitButton = '
         <button type="button"
-            class="btn btn-icon btn-bg-light btn-active-color-success btn-sm me-1 btn-submit"
+            class="btn btn-icon btn-bg-light btn-active-color-success btn-sm me-1 btn-submit disabled"
+            disabled aria-disabled="true"
             data-id="' . $row->id . '"
             data-url="' . route('rkbu.persediaan.submit', $row->id) . '"
             title="Ajukan RKBU">
@@ -261,7 +263,7 @@ class RkbuPersediaanDataTable extends DataTable
             <i class="fas fa-paper-plane"></i>
 
         </button>';
-                } elseif (in_array($status, ['revision', 'rejected'])) {
+                } elseif (auth()->user()->status_edit === 'aktif' && in_array($status, ['revision', 'rejected'])) {
 
                     $submitButton = '
         <button type="button"
@@ -276,7 +278,7 @@ class RkbuPersediaanDataTable extends DataTable
                 }
 
                 // Edit & Delete hanya untuk Draft dan Revision
-                if (in_array($status, ['draft', 'revision', 'rejected'])) {
+                if (auth()->user()->status_edit === 'aktif' && in_array($status, ['draft', 'revision', 'rejected'])) {
 
                     $editButton = '
         <a href="' . route('rkbu.persediaan.edit', $row->id) . '"
@@ -408,7 +410,7 @@ class RkbuPersediaanDataTable extends DataTable
             ->whereHas('rkbu', function ($q) {
                 $q->where('tahun_anggaran_id', session('tahun_anggaran_id'));
 
-                if (! auth()->user()->roles->contains('nama_role', 'Administrator')) {
+                if (! auth()->user()->hasRole('Administrator') && ! auth()->user()->hasRole('Super Admin')) {
                     $q->where('created_by', auth()->id());
                 }
             });

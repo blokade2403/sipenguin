@@ -9,15 +9,27 @@
                         <span class="card-label fw-bolder fs-3 mb-1">RKBU Modal</span>
                     </h3>
                     <div class="card-toolbar">
+                        @php($importModule = str_replace('rkbu.', '', $routePrefix))
+                        @if (in_array($importModule, ['modal_alkes', 'modal_kantor'], true))
+                            @include('rkbu.partials.bulk_import', ['module' => $importModule])
+                        @endif
                         <span id="barjas-selected-count" class="text-muted me-3">0 dipilih</span>
+                        @if (auth()->check() && auth()->user()->status_edit === 'aktif')
                         <button type="button" class="btn btn-sm btn-primary" id="barjas-bulk-submit"
                             data-table="#rkbumodalkantor-table"
                             data-submit-url="{{ route('rkbu.modal_kantor.bulk-submit') }}" disabled>
                             <i class="fas fa-paper-plane me-1"></i> Ajukan Terpilih
                         </button>
+                        @endif
                     </div>
                 </div>
                 <div class="card-body">
+                    @if (session('success'))
+                        <div class="alert alert-success">{{ session('success') }}</div>
+                    @endif
+                    @if ($errors->has('file'))
+                        <div class="alert alert-danger">{{ $errors->first('file') }}</div>
+                    @endif
                     <form id="modal-filter-form" action="{{ route($routePrefix . '.print') }}" method="GET" class="row g-3 align-items-end mb-5">
                         <div class="col-md-4 col-lg-3">
                             <label for="modal-filter-sumber-dana" class="form-label">Sumber Dana</label>

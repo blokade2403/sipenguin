@@ -11,9 +11,11 @@
                     <div class="card-toolbar">
                         @include('rkbu.partials.bulk_import', ['module' => 'persediaan'])
                         <span id="persediaan-selected-count" class="text-muted me-3">0 dipilih</span>
+                        @if (auth()->check() && auth()->user()->status_edit === 'aktif')
                         <button type="button" class="btn btn-sm btn-primary" id="persediaan-bulk-submit" disabled>
                             <i class="fas fa-paper-plane me-1"></i> Ajukan Terpilih
                         </button>
+                        @endif
                     </div>
                 </div>
                 <div class="card-body">
